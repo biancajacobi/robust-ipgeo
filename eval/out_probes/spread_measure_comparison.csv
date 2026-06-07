@@ -1,0 +1,14 @@
+measure,ap,prec_at_rec90,n_flag_rec90,prec_at_rec72,n_flag_rec72
+median pairwise (alt),0.339,16.4,385,23.6,216
+mean pairwise,0.295,23.7,266,28.5,179
+max pairwise,0.26,23.6,267,27.9,183
+q75 pairwise,0.302,23.6,267,32.9,155
+q90 pairwise,0.257,23.6,267,27.6,185
+max dist->Schätzer,0.253,23.9,264,28.0,182
+mean dist->Schätzer,0.302,22.7,278,30.0,170
+logit:med,0.339,,,,
+logit:med + any,0.377,,,,
+logit:med + majority,0.39,,,,
+logit:median + any (alte Achsen),0.377,,,,
+belastbar-Zelle (median (alt)),,q95=145,365,miss=6.0%,
+belastbar-Zelle (mean (neu)),,q95=64,283,miss=3.5%,
