@@ -1,4 +1,4 @@
-# robust-geoip-reference
+# robust-ipgeo
 
 **Robust reference-location estimation from multiple heterogeneous IP-geolocation
 sources of unknown quality — with ground-truth evaluation, a per-estimate confidence
