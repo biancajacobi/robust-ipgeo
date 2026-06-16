@@ -8,8 +8,8 @@ Vier Befunde (vgl. memory/braetz-verfahren.md):
  (c) Modalwert-Magnet (Braetz 2009, Abschnitt 4.4.1): Brätz-Hub-Einrast-Quote — Anteil Anchors,
      deren Brätz-Schätzung <50 km an einem bekannten Hub-Default liegt, Default-
      Querschnitt vs. Rest.
- (d) Sicherheits-Illusion: Brätz' KI misst INTERNE Sicherheit der Mitten-Folge, nicht
-     die Distanz zur GT → enges KI bei großem GT-Fehler (= T6-„niedrig+hub"-Zelle).
+ (d) Sicherheits-Illusion: Brätz' CI (Konfidenzintervall) misst INTERNE Sicherheit der Mitten-Folge, nicht
+     die Distanz zur GT → enges CI bei großem GT-Fehler (= T6-„niedrig+hub"-Zelle).
 
 Aufruf:  python experiments/exp_braetz.py
 Ergebnis: eval/out/e5_braetz.csv, eval/out/e5_braetz_ci_vs_gt.png (Bild 4.9), e5_braetz_qq.png
