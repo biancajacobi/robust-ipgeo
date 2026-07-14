@@ -1,0 +1,11 @@
+zeile,anchor,median_km,mean_km,tail_pct,err_mit,err_ohne,delta_km,wc_mit_pct,wc_ohne_pct
+mit_ipapi,,4.128005571459243,183.4373627460684,11.977715877437326,,,,,
+ohne_ipapi,,4.128005571459243,172.91479317748497,11.884865366759517,,,,,
+anchor_delta,node_00001,,,,5482.0,5481.8,0.2,,
+anchor_delta,node_00002,,,,29.9,28.6,1.4,,
+anchor_delta,node_00003,,,,11354.5,18.8,11335.7,,
+anchor_delta,node_00004,,,,14.6,18.8,-4.3,,
+anchor_delta,node_00005,,,,79.7,79.4,0.4,,
+anchor_delta,node_00006,,,,20.8,21.4,-0.6,,
+anchor_delta,node_00007,,,,21.6,21.6,-0.0,,
+gewichtsmasse_default,node_00003,,,,,,,51.0,47.5

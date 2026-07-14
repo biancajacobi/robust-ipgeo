@@ -1,6 +1,6 @@
 """T1 — Paired-Bootstrap-Konfidenzintervalle für die Aggregation L1·b.
 
-Fuer jede Einzelquelle (und die
+Reproduziert tab:t1-bootstrap der Ausarbeitung: für jede Einzelquelle (und die
 ungewichtete Baseline L0·a) wird die anchor-weise Median-Differenz
 
     Δ = median(d_{L1·b}) − median(d_{Quelle})
@@ -35,9 +35,11 @@ from experiments.exp_t6_defaults import (                  # noqa: E402
 
 B = 10_000
 SEED = 0
+N_VERGLEICHE = 8                 # 7 Quellen + Baseline (tab:t1-bootstrap)
+BONF_ALPHA = 0.05 / N_VERGLEICHE  # Bonferroni-adjustiertes Niveau
 OUT = Path("eval/out"); OUT.mkdir(parents=True, exist_ok=True)
 
-# Reihenfolge & Anzeigenamen der Einzelquellen
+# Reihenfolge & Anzeigenamen wie in tab:t1-vergleich
 SOURCE_LABELS = [
     ("ip2location_lite", "IP2Location LITE"),
     ("ipinfo",           "ipinfo.io"),
@@ -64,7 +66,11 @@ def paired_bootstrap(d_agg, d_ref, b=B, seed=SEED):
         idx = rng.integers(0, n, n)            # gepaart: gleiche Indizes beidseitig
         boot[i] = np.median(d_agg[idx]) - np.median(d_ref[idx])
     lo, hi = np.percentile(boot, [2.5, 97.5])
-    return delta, float(lo), float(hi)
+    # Bonferroni-adjustierte Intervalle (Multiplizitaet ueber die 8 Vergleiche);
+    # gleiche Bootstrap-Verteilung, nur breitere Quantile.
+    lo_b, hi_b = np.percentile(boot, [100 * BONF_ALPHA / 2,
+                                      100 * (1 - BONF_ALPHA / 2)])
+    return delta, float(lo), float(hi), float(lo_b), float(hi_b)
 
 
 def paired_bootstrap_stat(d_agg, d_ref, stat, b=B, seed=SEED):
@@ -112,12 +118,16 @@ def main():
         d_agg = [agg_l1b[ip] for ip in ips]
         d_ref = [ref_map[ip] for ip in ips]
         med_ref = float(np.median(d_ref))
-        delta, lo, hi = paired_bootstrap(d_agg, d_ref)
+        delta, lo, hi, lo_b, hi_b = paired_bootstrap(d_agg, d_ref)
         sig = "" if lo <= 0 <= hi else "  *"      # * = CI schließt 0 nicht ein
-        print(f"{label:28s} {med_ref:10.2f} {delta:+8.2f}   [{lo:+.2f}, {hi:+.2f}]{sig} (n={len(ips)})")
+        sig_b = "" if lo_b <= 0 <= hi_b else " *"  # * = auch Bonferroni-CI ohne 0
+        print(f"{label:28s} {med_ref:10.2f} {delta:+8.2f}   [{lo:+.2f}, {hi:+.2f}]{sig}"
+              f"  Bonf[{lo_b:+.2f}, {hi_b:+.2f}]{sig_b} (n={len(ips)})")
         rows.append({"reference": label, "median_source_km": round(med_ref, 2),
                      "delta_km": round(delta, 2), "ci_lo_km": round(lo, 2),
-                     "ci_hi_km": round(hi, 2), "n": len(ips)})
+                     "ci_hi_km": round(hi, 2),
+                     "bonf_ci_lo_km": round(lo_b, 2), "bonf_ci_hi_km": round(hi_b, 2),
+                     "n": len(ips)})
 
     for key, label in SOURCE_LABELS:
         emit(label, src_err[key])

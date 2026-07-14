@@ -7,7 +7,10 @@ der **gemeinsamen Schnittmenge** der einbezogenen Quellen (gleiche IP-Basis für
 alle Paare → kein Teilmengen-Artefakt). Quellen mit zu geringer Abdeckung
 (z. B. rate-limitiertes ipapi_co) werden ausgeschlossen und benannt.
 
-Output: eval/out/source_correlation.{csv,png} (Median-Distanz-Matrix + Heatmap).
+Output: eval/out/source_correlation.{csv,png} (Median-Distanz-Matrix + Heatmap)
+        + eval/out/source_family_drift.csv (Intra-Familien-Drift, §3.2.4:
+          geojs bit-identisch zu MaxMind; reallyfreegeoip gleiche Abstammung
+          mit abweichendem Datenstand — Richtung aus den Daten nicht bestimmbar).
 
     python experiments/exp_source_correlation.py
 """
@@ -27,6 +30,42 @@ from eval import report  # noqa: E402
 from eval.metrics import haversine  # noqa: E402
 
 MIN_COVERAGE = 0.20  # Quelle muss für >= 20 % der IPs einen Erfolg liefern
+FAMILY_REF = "maxmind_geolite2"
+FAMILY_OTHERS = ("geojs", "reallyfreegeoip")
+
+
+def _family_drift(pts, out_dir):
+    """Intra-Familien-Statistik: identisch-Quoten, Divergenz-Anteile und
+    Fehlervergleich auf dem divergenten Teil (>100 km) gegen die Ground Truth."""
+    import pandas as pd
+    anchors = {a["ip"]: (float(a["lat"]), float(a["lon"]))
+               for a in store.load_anchors_csv()
+               if a.get("lat") and a.get("lon")}
+    rows = []
+    for other in FAMILY_OTHERS:
+        ips = sorted(set(pts[FAMILY_REF]) & set(pts[other]) & set(anchors))
+        d = np.array([haversine(*pts[FAMILY_REF][ip], *pts[other][ip])
+                      for ip in ips])
+        div = [ip for ip, x in zip(ips, d) if x > 100]
+        row = {"paar": f"{FAMILY_REF}~{other}", "n": len(ips),
+               "identisch_pct": round(100 * float((d < 0.01).mean()), 1),
+               "unter_0_1km_pct": round(100 * float((d < 0.1).mean()), 1),
+               "ueber_1km_pct": round(100 * float((d > 1).mean()), 1),
+               "ueber_100km_pct": round(100 * float((d > 100).mean()), 1),
+               "median_paardistanz_km": round(float(np.median(d)), 3)}
+        if div:
+            e_ref = np.array([haversine(*pts[FAMILY_REF][ip], *anchors[ip])
+                              for ip in div])
+            e_oth = np.array([haversine(*pts[other][ip], *anchors[ip])
+                              for ip in div])
+            row.update(div_err_median_maxmind_km=round(float(np.median(e_ref)), 1),
+                       div_err_median_other_km=round(float(np.median(e_oth)), 1),
+                       div_other_schlechter_pct=round(100 * float((e_oth > e_ref).mean()), 0))
+        rows.append(row)
+        print(f"{FAMILY_REF} ~ {other}: identisch {row['identisch_pct']} %  "
+              f">100 km {row['ueber_100km_pct']} %")
+    pd.DataFrame(rows).to_csv(out_dir / "source_family_drift.csv", index=False)
+    print(f"CSV: {out_dir}/source_family_drift.csv")
 
 
 def _by_source(observations):
@@ -76,6 +115,7 @@ def run() -> None:
     report.OUT_DIR.mkdir(parents=True, exist_ok=True)
     csv_path = report.OUT_DIR / "source_correlation.csv"
     mat.round(2).to_csv(csv_path)
+    _family_drift(pts, report.OUT_DIR)
     png_path = _heatmap(mat, included, lineage, len(common))
 
     print("Paarweise Median-Distanz [km] (gemeinsame Schnittmenge):")

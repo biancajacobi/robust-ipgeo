@@ -19,7 +19,7 @@ addresses are not included; see *Data & privacy* below.
 
 - **Estimators** (continuous 2-D): coordinate mean, component-wise median, trimmed
   mean, geometric median (Weiszfeld / L1-median), and the headline
-  **confidence- and provider-line-weighted geometric median**.
+  **accuracy-radius- and provider-line-weighted geometric median**.
 - **Provider-line weighting** collapses correlated sources (e.g. databases that resell
   the same upstream data) so they cannot dominate the aggregate — without discarding them.
 - **Confidence measure `S`**: the line-weighted *support concentration* — the share of
@@ -37,7 +37,7 @@ estimators/   aggregation estimators (baselines + Brätz)
 eval/         metrics (Haversine), evaluation pipeline, reporting
 eval/out/     result tables (CSV) and figures (PNG) — anchors
 eval/out_probes/  result tables/figures — probe stress test
-experiments/  studies T1–T6 + RIPE-Atlas-probe comparison
+experiments/  studies T1–T6, RIPE-Atlas-probe comparison + sensitivity/edge-case checks
 data/         data acquisition (RIPE Atlas, geolocation sources), default detection, provenance store
 tests/        unit tests (46, pytest)
 notebooks/    results dashboard (reads eval/out, runs without raw data)
@@ -66,11 +66,19 @@ pip install -r requirements.txt
 
 ## Selected findings
 
-- The confidence- and line-weighted geometric median beats most single sources in median
-  error and degrades gracefully; the geometric median stays robust up to ~50 % coordinated
-  contamination, while the naive mean breaks immediately.
-- The line-weighted support concentration `S` triples the out-of-fold calibration skill of
-  an earlier two-axis label and surfaces the majority of aggregation failures ex ante.
+- The accuracy-radius- and line-weighted geometric median beats most single sources in
+  median error and degrades gracefully; the geometric median stays robust up to an
+  effective contamination of ≈ 37.5 % (breakdown between 37.5 % and 50 %), while the
+  naive mean breaks immediately.
+- The line-weighted support concentration `S` triples the out-of-fold forecast skill of
+  an earlier two-axis label and surfaces the majority of aggregation failures ex ante
+  (recall 72 % → 92 % at a 41 % flag rate). Under coordinated contamination, hijacked
+  estimates stay below the flag threshold up to α = 0.5 — the guard has its own, higher
+  breakdown (≈ 0.83 line mass).
+- Sensitivity and edge-case checks are scripted and artifact-backed (`docs/experimente.md`):
+  ipapi.co inclusion (a single weight-mass knife-edge anchor), the `reallyfreegeoip`
+  line definition (same lineage, differing data state), antimeridian handling, and
+  Bonferroni-adjusted bootstrap CIs.
 - The Brätz comparison method is dominated by the robust estimators, and its confidence
   interval is badly miscalibrated — driven by correlated source replicates.
 - A probe stress test confirms an access-class difficulty gradient

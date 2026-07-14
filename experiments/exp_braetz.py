@@ -1,11 +1,11 @@
 """E5 / T5 — Kritische Prüfung von Brätz' Fuzzy-Schätzer in der Geo-Domäne.
 
 Vier Befunde (vgl. memory/braetz-verfahren.md):
- (a) Brätz vs. robuste Schätzer: Distanz-zur-Ground-Truth je Schwierigkeits-Eimer.
+ (a) Brätz vs. robuste Schätzer: Distanz-zur-Ground-Truth je Schwierigkeits-Bucket.
  (b) Normalität: Shapiro-Wilk auf EINGANG und auf die MITTEN-FOLGE (Brätz' eigentliche
      Annahme). Headline = Anteil KLAR abgelehnt (p<0,01) als konservative Untergrenze;
-     nicht-abgelehnt ist bei n=8 mangels Power KEIN Normalitätsbeleg. + Q-Q je Eimer.
- (c) Modalwert-Magnet (Braetz 2009, Abschnitt 4.4.1): Brätz-Hub-Einrast-Quote — Anteil Anchors,
+     nicht-abgelehnt ist bei n=8 mangels Power KEIN Normalitätsbeleg. + Q-Q je Bucket.
+ (c) Modalwert-Magnet (Brätz Kap. 4.4.1): Brätz-Hub-Einrast-Quote — Anteil Anchors,
      deren Brätz-Schätzung <50 km an einem bekannten Hub-Default liegt, Default-
      Querschnitt vs. Rest.
  (d) Sicherheits-Illusion: Brätz' CI (Konfidenzintervall) misst INTERNE Sicherheit der Mitten-Folge, nicht
@@ -123,8 +123,8 @@ def main():
     df = pd.DataFrame(rows)
     df.to_csv(OUT / "e5_braetz.csv", index=False)
 
-    print("\n(a) Distanz zur GT — Median [Mittel] km je Eimer")
-    print(f"{'Eimer':10s} {'n':>5s}  {'Brätz':>16s} {'geom.Median':>16s} {'naiv':>16s}")
+    print("\n(a) Distanz zur GT — Median [Mittel] km je Bucket")
+    print(f"{'Bucket':10s} {'n':>5s}  {'Brätz':>16s} {'geom.Median':>16s} {'naiv':>16s}")
     for b in ["easy", "uneinig", "hart"]:
         s = df[df.bucket == b]
         cells = [f"{s[c].median():5.0f}[{s[c].mean():5.0f}]" for c in ("err_braetz", "err_geomed", "err_naiv")]
@@ -251,7 +251,7 @@ def run_line_collapse(cases):
     print("\n(f) Kontrollexperiment — Braetz auf linien-kollabierten Quellen (MaxMind-Familie = 1 Vertreter)")
     print(f"  Quellen nach Kollaps: median {int(np.median(nrep))} (min {min(nrep)}, max {max(nrep)}); "
           f"n=6 liegt im Braetz-Arbeitsbereich (ab 3-5 Werte, S.67) -> kein Kleinst-n-Confound")
-    print(f"  {'Eimer':10s} {'n':>5s} {'Med full':>9s} {'Med coll':>9s} {'Mean full':>10s} {'Mean coll':>10s}")
+    print(f"  {'Bucket':10s} {'n':>5s} {'Med full':>9s} {'Med coll':>9s} {'Mean full':>10s} {'Mean coll':>10s}")
     for b in ["easy", "uneinig", "hart", "gesamt"]:
         s = df if b == "gesamt" else df[df.bucket == b]
         print(f"  {b:10s} {len(s):5d} {s.err_full.median():9.1f} {s.err_coll.median():9.1f} "
@@ -282,7 +282,7 @@ def _qq_plot(cases, df):
             stats.probplot(seq, dist="norm", plot=ax)
         ax.set_title(f"{label}: {ip}\nMitten-Folge lat (m={seq.size}), Shapiro p={p:.3f}", fontsize=9)
         ax.set_xlabel("theoret. Quantile"); ax.set_ylabel("Mitten-Werte / °")
-    fig.suptitle("T5 — Q-Q der Brätz-Mitten-Folge je Eimer (Normalitäts-Annahme des KI)")
+    fig.suptitle("T5 — Q-Q der Brätz-Mitten-Folge je Bucket (Normalitäts-Annahme des CI)")
     fig.tight_layout(); fig.savefig(OUT / "e5_braetz_qq.png", dpi=150); plt.close(fig)
 
 
@@ -315,9 +315,9 @@ def _summary_plot(df):
 
     ax.axhline(200, color="grey", ls="--", lw=0.6); ax.axvline(100, color="grey", ls="--", lw=0.6)
     ax.set_xlim(xlo, xhi); ax.set_ylim(ylo, yhi)
-    ax.set_xlabel("Brätz-KI-Halbbreite / km  (interne Sicherheit)")
+    ax.set_xlabel("Brätz-CI-Halbbreite / km  (interne Sicherheit)")
     ax.set_ylabel("tatsächlicher Fehler zur GT / km")
-    ax.set_title(f"T5 — Brätz-KI ohne Wahrheits-Bezug: {100*noncov:.0f}% Nicht-Abdeckung  (n={len(df)})")
+    ax.set_title(f"T5 — Brätz-CI ohne Wahrheits-Bezug: {100*noncov:.0f}% Nicht-Abdeckung  (n={len(df)})")
     ax.grid(True, which="both", alpha=0.2); ax.legend(loc="lower right")
     fig.tight_layout(); fig.savefig(OUT / "e5_braetz_ci_vs_gt.png", dpi=150); plt.close(fig)
 
