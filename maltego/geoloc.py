@@ -65,22 +65,41 @@ def collect(ip: str, sources: list[str] | None = None) -> tuple[list[dict], list
     """
     names = list(sources or SOURCES)
     web = [n for n in names if "reader" not in SOURCES[n]]
+
+    def _safe_query(name: str) -> dict:
+        # query_source faengt Netz-/Parse-Fehler selbst (gibt Fehler-Dicts zurueck);
+        # dies ist die Verteidigungslinie fuer den Rest (z. B. KeyError-Guard) —
+        # ex.map wuerde eine durchgereichte Exception sonst beim Iterieren werfen
+        # und die restlichen Quellen aus `entries` fallen lassen.
+        try:
+            return query_source(name, ip)
+        except Exception as e:
+            return {"source": name, "ip": ip, "fetched_at_utc": None,
+                    "http_status": None, "url": None, "body": None, "error": repr(e)}
+
     entries: dict[str, dict] = {}
     if web:
         with ThreadPoolExecutor(max_workers=len(web)) as ex:
-            for name, entry in zip(web, ex.map(lambda n: query_source(n, ip), web)):
+            for name, entry in zip(web, ex.map(_safe_query, web)):
                 entries[name] = entry
     for name in names:
         if "reader" in SOURCES[name]:
-            entries[name] = query_source(name, ip)
+            entries[name] = _safe_query(name)
 
     obs, failed = [], []
     for name in names:                       # stabile Reihenfolge wie SOURCES
-        o = observation_from_raw(entries[name])
+        try:
+            o = observation_from_raw(entries[name])
+        except Exception as e:
+            # Parser erwarten ein JSON-Objekt; resp.json() akzeptiert aber jedes
+            # valide JSON (String/Array, z. B. Rate-Limit-Antworten) -> AttributeError.
+            failed.append((name, f"parse_error: {e!r}"))
+            continue
         if o["status"] == "success" and o["lat"] is not None and o["lon"] is not None:
             obs.append(o)
         else:
-            failed.append((name, str(o["status"])))
+            err = entries[name].get("error")
+            failed.append((name, f"{o['status']} ({err})" if err else str(o["status"])))
     return obs, failed
 
 

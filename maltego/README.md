@@ -86,7 +86,7 @@ mass within 50 km of the estimate (city scale, pre-specified).
 * **Frozen pseudo-radii.** There is no ground truth at query time; the radius
   weighting therefore uses each source's global track record from the anchor
   evaluation (`radius_table.json`), not per-IP values.
-* **No dataset-based hub detection.** The thesis' centroid/hub detection
+* **No dataset-based hub detection.** The papers' centroid/hub detection
   needs frequencies across many IPs. Live, the transform instead warns about
   country centroids when MaxMind reports `accuracy_radius ≥ 500 km`.
 * **S measures precision (source consensus), not accuracy.** Sources can
