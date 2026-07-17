@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "beschreibung": "Eingefrorene Pseudo-Radien je Quelle (km): globaler Leave-one-out-Median des Quellfehlers aus der Anchor-Evaluation der Arbeit. Ersetzt im Live-Betrieb die per-IP-LOO-Radien, da fuer eine unbekannte IP keine Ground Truth vorliegt. MaxMind nutzt weiterhin den live gelieferten accuracy_radius.",
+    "erzeugt_mit": "maltego/make_radius_table.py",
+    "datenstand": "anchors-Datensatz, n=1077 Faelle, Stand 2026-07-17",
+    "einheit": "km"
+  },
+  "radii_km": {
+    "dbip_lite": 7.0,
+    "geojs": 14.5,
+    "ip2location_lite": 3.4,
+    "ip_api": 6.2,
+    "ipapi_co": 42.3,
+    "ipinfo": 5.3,
+    "ipwho_is": 5.2,
+    "maxmind_geolite2": 14.5,
+    "reallyfreegeoip": 20.5
+  }
+}

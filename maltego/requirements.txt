@@ -1,0 +1,2 @@
+# Zusaetzlich zu ../requirements.txt (numpy/requests/geoip2/IP2Location kommen von dort):
+maltego-trx>=1.6
