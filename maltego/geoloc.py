@@ -26,6 +26,7 @@ import json
 import logging
 import sys
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # maltego-trx konfiguriert den Root-Logger auf DEBUG; urllib3 wuerde dann jede
@@ -33,7 +34,6 @@ from pathlib import Path
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 import numpy as np
-import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from data.fetch_sources import SOURCES, query_source, observation_from_raw  # noqa: E402
@@ -52,13 +52,31 @@ _RADIUS_TABLE = json.loads(
 def collect(ip: str, sources: list[str] | None = None) -> tuple[list[dict], list[tuple[str, str]]]:
     """Alle Quellen live abfragen -> (gueltige Beobachtungen, Fehlliste).
 
+    Web-Quellen laufen PARALLEL (ThreadPool): die Gesamtdauer ist damit die der
+    langsamsten Quelle statt der Summe; eine haengende Quelle blockiert nur bis
+    zu ihrem eigenen Timeout (fetch_sources.TIMEOUT, 15 s) und faellt dann in
+    die Fehlliste. Bewusst OHNE geteilte requests.Session (nicht thread-sicher;
+    ein Abruf je Quelle rechtfertigt kein Connection-Pooling). Die Offline-DBs
+    lesen seriell danach — sie sind schnell, und die lazy Reader-Initialisierung
+    in fetch_sources ist nicht fuer parallele Erstzugriffe gebaut.
+
     Quellen ohne Key/DB-Datei degradieren zu Eintraegen in der Fehlliste —
     der Schaetzer laeuft mit den verbleibenden Linien weiter.
     """
-    session = requests.Session()
+    names = list(sources or SOURCES)
+    web = [n for n in names if "reader" not in SOURCES[n]]
+    entries: dict[str, dict] = {}
+    if web:
+        with ThreadPoolExecutor(max_workers=len(web)) as ex:
+            for name, entry in zip(web, ex.map(lambda n: query_source(n, ip), web)):
+                entries[name] = entry
+    for name in names:
+        if "reader" in SOURCES[name]:
+            entries[name] = query_source(name, ip)
+
     obs, failed = [], []
-    for name in (sources or list(SOURCES)):
-        o = observation_from_raw(query_source(name, ip, session=session))
+    for name in names:                       # stabile Reihenfolge wie SOURCES
+        o = observation_from_raw(entries[name])
         if o["status"] == "success" and o["lat"] is not None and o["lon"] is not None:
             obs.append(o)
         else:

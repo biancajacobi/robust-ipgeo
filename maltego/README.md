@@ -52,6 +52,17 @@ responsibility.
 5. Working directory: `<repo>/maltego`
 6. Repeat once more with `project.py local persourceestimates`.
 
+**No pin on the map view?** The transforms set `latitude`/`longitude` as
+properties of the built-in `maltego.Location` entity. If the coordinates show
+up in the entity's detail view but no pin is rendered on the map, your Maltego
+version expects different property field IDs — check the actual field IDs of
+`maltego.Location` under **Entities → Manage Entities** and adjust the
+`addProperty` field names in `transforms/*.py` accordingly.
+
+Note on the entity label: it shows the city/country of the *closest*
+observation as a display heuristic — the actual result is the coordinate pair
+(the weighted median), which can in principle fall into a different city.
+
 ## Method in brief
 
 For each IP, all reachable sources are queried; sources with the same data
@@ -75,7 +86,7 @@ mass within 50 km of the estimate (city scale, pre-specified).
 * **Frozen pseudo-radii.** There is no ground truth at query time; the radius
   weighting therefore uses each source's global track record from the anchor
   evaluation (`radius_table.json`), not per-IP values.
-* **No dataset-based hub detection.** The papers' centroid/hub detection
+* **No dataset-based hub detection.** The thesis' centroid/hub detection
   needs frequencies across many IPs. Live, the transform instead warns about
   country centroids when MaxMind reports `accuracy_radius ≥ 500 km`.
 * **S measures precision (source consensus), not accuracy.** Sources can

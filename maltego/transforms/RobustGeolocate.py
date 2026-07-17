@@ -29,6 +29,9 @@ class RobustGeolocate(DiscoverableTransform):
             return
 
         lat, lon = r["estimate"]
+        # Label = Anzeige-Heuristik: Stadt/Land der Beobachtung, die dem Schaetzer am
+        # naechsten liegt. Die eigentliche Aussage sind die Median-KOORDINATEN — der
+        # Median kann theoretisch in einer anderen Stadt liegen als der Label-Punkt.
         near = min(r["observations"], key=lambda o: o["dist_to_estimate_km"])
         label = ", ".join(x for x in (near.get("city"), near.get("country")) if x) \
             or f"{lat:.4f}, {lon:.4f}"
