@@ -1,0 +1,8 @@
+flag_rule,flag_quote,recall_misses,precision
+Vorgaengerlabel (Streuung>=50 ODER Hub),0.412,0.721,0.209
+S < 0.8333 (strikt),0.292,0.86,0.352
+S <= 0.8333 (inklusiv),0.491,0.938,0.229
+"S, gematchte Quote, anteilige Bindungsaufloesung (Erwartungswert)",0.412,0.907,0.264
+"S, Quote gerundet 41 %, Bindungsaufloesung per Datenreihenfolge (Audit; Erst-Auswertung)",0.41,0.915,0.267
+"S, erster Rangfolge-Punkt mit Recall >= 72,1 % (Audit; Erst-Auswertung)",0.201,0.729,0.433
+"S < Train-Quantil (fold-intern, 10-fach)",0.292,0.86,0.352

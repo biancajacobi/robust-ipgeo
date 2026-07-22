@@ -16,8 +16,19 @@ Miss-Schwelle tau (Skalen-Matching, s. scale_matching_grid) -- den bestpunktende
 waehlen waere implizites Tunen auf die Bewertungsschwelle. Headline-Radius r=50 km ist
 die vorab spezifizierte City-Skala-Konstante (identisch low_spread/Bucket-Grenze).
 
+Triage-Arbeitspunkt (gematchte Flag-Quote 41 % des Vorgaengerlabels): S liegt an der
+Schwelle in einer grossen Bindungsgruppe (identischer S-Wert); die punktgenaue Quote
+ist nur durch Aufteilen der Gruppe erreichbar. Reihenfolge-unabhaengig gilt: Recall
+auf den Misses 72 % -> ~91 % erwartungstreu (Band 86-94 % je nach Bindungsaufloesung);
+strikte Schwelle: 86 % Recall bei nur 29 % Flag-Quote. Die zuvor berichteten
+Arbeitspunkte (92 % Recall bei 41 % Quote, praezise 91,5 %/26,7 %; Quote 20,1 % bei
+Recall >= 72,1 %, Praezision 43,3 %) werden als deklarierte Audit-Zeilen deterministisch
+reproduziert (Konstruktion der Erst-Auswertung: gerundete Quote/Ziel-Recall,
+Bindungsaufloesung per Datenreihenfolge). Details: triage_matched_quote().
+
 Aufruf:  python experiments/exp_support_concentration.py
 Ergebnis: Tabellen (stdout) + eval/out/support_concentration_oof.csv
+          + eval/out/support_concentration_triage.csv (Arbeitspunkt-Vergleich)
           + eval/out/support_concentration.png (BSS-Leiter + Reliability-Diagramm)
 """
 
@@ -135,6 +146,98 @@ def ece(ph, y, nb=5):
         if m.sum():
             out += m.sum() / len(y) * abs(ph[m].mean() - y[m].mean())
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Triage-Vergleich am Arbeitspunkt des Vorgaengerlabels (gematchte Flag-Quote)
+# --------------------------------------------------------------------------- #
+def triage_matched_quote(df, y, win):
+    """Binaerer Triage-Vergleich: S gegen das 2D-Vorgaengerlabel (Streuung x Hub).
+
+    Die Flag-Quote wird EXPLIZIT vom Vorgaengerlabel uebernommen (Vergleichs-Design:
+    gleicher Arbeitspunkt, wer markiert mehr Misses?). S ist an der Schwelle massiv
+    gebunden (Bindungsgruppe mit identischem S-Wert); eine punktgenaue Quote ist nur
+    durch Aufteilen dieser Gruppe erreichbar, und welcher Teil genommen wird, ist
+    methodisch unbestimmt. Berichtet werden deshalb reihenfolge-unabhaengig:
+      (a) der erwartungstreue Recall bei anteiliger Bindungsaufloesung,
+      (b) das Band der beiden ehrlichen Schwellen (S < t bzw. S <= t),
+      (c) die fold-interne Kontrolle (Schwelle als Train-Quantil, Recall auf Test).
+    """
+    S = df[win].values
+    old = (df.med.values >= 50) | df.hub.values.astype(bool)
+    n_flag, miss = int(old.sum()), int(y.sum())
+    q = n_flag / len(y)
+    t = float(np.sort(S)[n_flag - 1])
+    lo, hi, tie = S < t, S <= t, S == t
+    k = n_flag - int(lo.sum())                       # aus der Bindungsgruppe zu nehmen
+    tp_lo, tp_hi, tie_m = int(y[lo].sum()), int(y[hi].sum()), int(y[tie].sum())
+    exp_tp = tp_lo + tie_m * k / int(tie.sum())      # anteilige Bindungsaufloesung
+
+    # Audit-Rekonstruktion der zuvor berichteten Arbeitspunkte (Konstruktion der
+    # Erst-Auswertung, deterministisch): (1) gerundete 41-%-Quote als Exakt-Anzahl
+    # k = round(0.41*n), Bindungsaufloesung per Datenreihenfolge (stabile Sortierung)
+    # -> Recall 91,5 %, Praezision 26,7 %; (2) erster Punkt der S-Rangfolge mit
+    # Recall >= 72,1 % (gerundeter Vorgaengerlabel-Recall, vgl. prec_at_recall in
+    # exp_spread_measure.py) -> Quote 20,1 %, Praezision 43,3 %. Beides konkrete
+    # Bindungsaufloesungen, keine methodische Aussage -- die tragen die
+    # erwartungstreue Zeile und das Band oben.
+    o = np.argsort(S, kind="stable")
+    k41 = int(round(0.41 * len(y)))
+    ex = np.zeros(len(y), bool)
+    ex[o[:k41]] = True
+    tp_ex = int(y[ex].sum())
+    tgt = round(float(old[y == 1].mean()), 3)
+    o72 = np.argsort(S)          # Default-argsort = Bindungsreihenfolge von prec_at_recall
+    tp_seq = np.cumsum(y[o72])
+    k72 = int(np.argmax(tp_seq / miss >= tgt)) + 1
+    tp72 = int(tp_seq[k72 - 1])
+
+    # fold-interne Kontrolle: Schwelle nur aus den Trainingsfolds (strikt, S < t_fold)
+    F = folds(y)
+    fl = np.zeros(len(y), bool)
+    for fi in range(K):
+        tr, te = F != fi, F == fi
+        fl[te] = S[te] < np.quantile(S[tr], old[tr].mean())
+
+    print("\nTRIAGE bei gematchter Flag-Quote (Arbeitspunkt des Vorgaengerlabels):")
+    print(f"  Vorgaengerlabel:      Quote {q:.1%}, Recall {old[y == 1].mean():.1%}, "
+          f"Praezision {y[old].mean():.1%}")
+    print(f"  S-Bindungsgruppe an der Schwelle t={t:.4f}: {int(tie.sum())} Anchors "
+          f"({tie_m} Misses), davon {k} zu flaggen -> punktgenaue Quote nur per Aufteilung")
+    print(f"  S strikt   (S < t):   Quote {lo.mean():.1%}, Recall {tp_lo / miss:.1%}, "
+          f"Praezision {tp_lo / int(lo.sum()):.1%}")
+    print(f"  S inklusiv (S <= t):  Quote {hi.mean():.1%}, Recall {tp_hi / miss:.1%}, "
+          f"Praezision {tp_hi / int(hi.sum()):.1%}")
+    print(f"  S erwartungstreu bei Quote {q:.1%} (anteilige Bindungsaufloesung): "
+          f"Recall {exp_tp / miss:.1%}, Praezision {exp_tp / n_flag:.1%}")
+    print(f"  S Audit 1 (Quote gerundet 41 % = {k41} Flags, Ties per Datenreihenfolge; "
+          f"zuvor berichtet): Recall {tp_ex / miss:.1%}, Praezision {tp_ex / k41:.1%}")
+    print(f"  S Audit 2 (erster Rangfolge-Punkt mit Recall >= {tgt:.1%}; zuvor berichtet): "
+          f"Quote {k72 / len(y):.1%}, Recall {tp72 / miss:.1%}, Praezision {tp72 / k72:.1%}")
+    print(f"  fold-interne Schwelle (Train-Quantil): Quote {fl.mean():.1%}, "
+          f"Recall {fl[y == 1].mean():.1%}, Praezision {y[fl].mean():.1%}")
+
+    rows = [
+        {"flag_rule": "Vorgaengerlabel (Streuung>=50 ODER Hub)", "flag_quote": round(q, 3),
+         "recall_misses": round(float(old[y == 1].mean()), 3), "precision": round(float(y[old].mean()), 3)},
+        {"flag_rule": f"S < {t:.4f} (strikt)", "flag_quote": round(float(lo.mean()), 3),
+         "recall_misses": round(tp_lo / miss, 3), "precision": round(tp_lo / int(lo.sum()), 3)},
+        {"flag_rule": f"S <= {t:.4f} (inklusiv)", "flag_quote": round(float(hi.mean()), 3),
+         "recall_misses": round(tp_hi / miss, 3), "precision": round(tp_hi / int(hi.sum()), 3)},
+        {"flag_rule": "S, gematchte Quote, anteilige Bindungsaufloesung (Erwartungswert)",
+         "flag_quote": round(q, 3), "recall_misses": round(exp_tp / miss, 3),
+         "precision": round(exp_tp / n_flag, 3)},
+        {"flag_rule": "S, Quote gerundet 41 %, Bindungsaufloesung per Datenreihenfolge (Audit; zuvor berichtet)",
+         "flag_quote": round(k41 / len(y), 3), "recall_misses": round(tp_ex / miss, 3),
+         "precision": round(tp_ex / k41, 3)},
+        {"flag_rule": "S, erster Rangfolge-Punkt mit Recall >= 72,1 % (Audit; zuvor berichtet)",
+         "flag_quote": round(k72 / len(y), 3), "recall_misses": round(tp72 / miss, 3),
+         "precision": round(tp72 / k72, 3)},
+        {"flag_rule": "S < Train-Quantil (fold-intern, 10-fach)", "flag_quote": round(float(fl.mean()), 3),
+         "recall_misses": round(float(fl[y == 1].mean()), 3), "precision": round(float(y[fl].mean()), 3)},
+    ]
+    pd.DataFrame(rows).to_csv(OUT / "support_concentration_triage.csv", index=False)
+    print(f"  CSV: {OUT}/support_concentration_triage.csv")
 
 
 # --------------------------------------------------------------------------- #
@@ -267,6 +370,9 @@ def run():
         print(f"  tau={tau:<4d}  " + "".join(f"{v:+.3f}{s} " for v, s in zip(vals, star)))
 
     pd.DataFrame(out_rows).to_csv(OUT / "support_concentration_oof.csv", index=False)
+
+    # Triage-Arbeitspunkt-Vergleich (gematchte Flag-Quote, Bindungen explizit)
+    triage_matched_quote(df, y, win)
 
     # Abbildung
     ladder = [("median pairwise", bss(ph_cache["median pairwise (alt)"], y)),
