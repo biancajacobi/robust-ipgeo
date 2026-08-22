@@ -3,12 +3,14 @@ pandas>=2.0
 numpy>=1.26
 scipy>=1.11
 matplotlib>=3.8
-# geopy>=2.4       # optional: Haversine/Distanzen (sonst eigene Implementierung)
+
+# Readers for the local LITE databases (offline, independent lines):
+geoip2>=4.8        # reads MaxMind/DB-IP .mmdb (pulls in maxminddb)
+IP2Location>=8.10  # reads IP2Location .BIN
+
+# Tests
 pytest>=8.0
 
-# Reader für die lokalen LITE-DBs (offline, unabhängige Linien):
-geoip2>=4.8        # liest MaxMind/DB-IP .mmdb (zieht maxminddb mit)
-IP2Location>=8.10  # liest IP2Location .BIN
-
-# Speicherung bewusst textbasiert (CSV + JSONL, stdlib): keine Binär-DB nötig,
-# hält den forensischen Provenance-Kern (data/store.py) dependency-arm.
+# Storage is deliberately text-based (CSV + JSONL, stdlib only): no binary DB
+# needed, which keeps the forensic provenance core (data/store.py) light on
+# dependencies.

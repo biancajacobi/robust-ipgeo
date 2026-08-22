@@ -1,13 +1,13 @@
-"""Pipeline: Beobachtungen je IP auflösen → Schätzer rechnen → gegen Ground
-Truth bewerten.
+"""Pipeline: resolve observations per IP → compute estimators → evaluate
+against ground truth.
 
-Die Pipeline ist selbst ein forensisches Artefakt (FF4): jeder Schätzwert ist
-über ``Case.provenance`` auf die zugrunde liegenden, provenancierten Quellwerte
-(Quelle, Koordinate, Zeitpunkt, Status) zurückführbar. Roh-Beleg + Hash-Kette
-liegen in ``data/`` (siehe ``data/store``); hier wird die Kette
-Quellwert → Schätzung → Fehler hergestellt.
+The pipeline is itself a forensic artifact (RQ4): every estimate is traceable
+via ``Case.provenance`` to the underlying, provenance-tracked source values
+(source, coordinate, timestamp, status). Raw evidence + hash chain live in
+``data/`` (see ``data/store``); here the chain
+source value → estimate → error is established.
 
-Konvention durchgängig: Koordinaten als (lat, lon) in Dezimalgrad.
+Convention throughout: coordinates as (lat, lon) in decimal degrees.
 """
 
 from __future__ import annotations
@@ -37,14 +37,14 @@ def _to_float(x):
 def load_cases(anchors: list[dict] | None = None,
                observations: list[dict] | None = None,
                statuses=("success",)) -> list[dict]:
-    """Anchors + Observations zu Fällen je IP verbinden.
+    """Join anchors + observations into cases per IP.
 
-    Ein *Fall* (Case-Dict) bündelt: ``ip``, ``truth=(lat, lon)`` (Anchor),
-    ``points`` (np.ndarray (n, 2) der gültigen Quell-Schätzungen), ``sources``
-    und ``provenance`` (je Quellwert Quelle/Koordinate/Zeit/Status).
+    A *case* (case dict) bundles: ``ip``, ``truth=(lat, lon)`` (anchor),
+    ``points`` (np.ndarray (n, 2) of the valid source estimates), ``sources``
+    and ``provenance`` (per source value: source/coordinate/time/status).
 
-    Nur Beobachtungen mit ``status`` in ``statuses`` und gültigen Koordinaten
-    werden zu Punkten. Anchors ohne verwertbare Beobachtung entfallen.
+    Only observations with ``status`` in ``statuses`` and valid coordinates
+    become points. Anchors without a usable observation are dropped.
     """
     anchors = store.load_anchors_csv() if anchors is None else anchors
     observations = store.load_observations_csv() if observations is None else observations
@@ -87,20 +87,20 @@ def load_cases(anchors: list[dict] | None = None,
 
 
 def line_weights(lineages) -> np.ndarray:
-    """Gewicht αᵢ je Punkt: jede Linie (gleiche ``lineage``) erhält Gesamtgewicht
-    1, gleichmäßig auf ihre Mitglieder verteilt. So zählen korrelierte Quellen
-    zusammen wie eine — ohne sie zu verwerfen (für den gewichteten GM)."""
+    """Weight αᵢ per point: each line (same ``lineage``) receives total weight
+    1, distributed evenly across its members. This way correlated sources count
+    together as one — without discarding them (for the weighted GM)."""
     from collections import Counter
     counts = Counter(lineages)
     return np.array([1.0 / counts[lin] for lin in lineages], dtype=float)
 
 
 def estimate_case(points: np.ndarray, estimators: dict) -> dict:
-    """Jeden Schätzer auf die Punktwolke eines Falls anwenden.
+    """Apply every estimator to a case's point cloud.
 
-    Rückgabe: {name: (lat, lon)} bzw. {name: None}, falls der Schätzer für
-    diesen Fall nicht definiert ist (z. B. zu wenige Punkte, noch nicht
-    implementiert) — Fehler werden gefangen, nicht propagiert.
+    Returns: {name: (lat, lon)} or {name: None} if the estimator is not
+    defined for this case (e.g. too few points, not yet implemented) —
+    errors are caught, not propagated.
     """
     out = {}
     for name, fn in estimators.items():
@@ -108,7 +108,7 @@ def estimate_case(points: np.ndarray, estimators: dict) -> dict:
             est = np.asarray(fn(points), dtype=float)
             out[name] = (float(est[0]), float(est[1]))
         except Exception as exc:
-            logger.warning("Schätzer %r schlug fehl (%d Punkte): %s",
+            logger.warning("Estimator %r failed (%d points): %s",
                            name, len(points), exc)
             out[name] = None
     return out
@@ -117,17 +117,17 @@ def estimate_case(points: np.ndarray, estimators: dict) -> dict:
 def evaluate(cases: list[dict], estimators: dict,
              include_sources: bool = False,
              line_weighted: dict | None = None) -> pd.DataFrame:
-    """Alle Schätzer auf allen Fällen rechnen und Haversine-Fehler bestimmen.
+    """Compute all estimators on all cases and determine haversine errors.
 
-    Liefert ein Long-Format-DataFrame (eine Zeile je Fall×Schätzer):
+    Returns a long-format DataFrame (one row per case×estimator):
     ``ip, estimator, kind, n_sources, n_lines, est_lat, est_lon, error_km, asn, country``.
 
-    - ``estimators``: dict ``{name: fn(points)}`` — pro Quelle gleich gewichtet.
-    - ``line_weighted``: optional dict ``{name: fn(points, weights)}`` — mit
-      Linien-Gewichten (1 pro ``lineage``), damit korrelierte Quellen nicht
-      dominieren (vgl. ``line_weights``).
-    - ``include_sources``: zusätzlich je Einzelquelle eine ``kind="source"``-Zeile
-      (``estimator="src:<quelle>"``) — für „beste Einzelquelle" in E1.
+    - ``estimators``: dict ``{name: fn(points)}`` — equally weighted per source.
+    - ``line_weighted``: optional dict ``{name: fn(points, weights)}`` — with
+      line weights (1 per ``lineage``) so correlated sources do not
+      dominate (cf. ``line_weights``).
+    - ``include_sources``: additionally one ``kind="source"`` row per individual
+      source (``estimator="src:<source>"``) — for "best single source" in E1.
     """
     rows = []
     for case in cases:
@@ -155,7 +155,7 @@ def evaluate(cases: list[dict], estimators: dict,
                     e = np.asarray(fn(pts, w), dtype=float)
                     est = (float(e[0]), float(e[1]))
                 except Exception as exc:
-                    logger.warning("Linien-gew. Schätzer %r schlug fehl (ip=%s): %s",
+                    logger.warning("Line-weighted estimator %r failed (ip=%s): %s",
                                    name, case["ip"], exc)
                     est = None
                 rows.append(_row(name, est))

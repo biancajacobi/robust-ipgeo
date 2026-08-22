@@ -1,8 +1,8 @@
-"""Aggregation der Experiment-Ergebnisse: Kennzahlen, Tabellen, Plots.
+"""Aggregation of experiment results: metrics, tables, plots.
 
-Ausgabe nach eval/out/ (Tabellen als CSV/Markdown, Plots als PNG/PDF).
-Kern-Kennzahlen je Schätzer: Median-Fehler, 90.-Perzentil-Fehler,
-Fehlerverteilung (km).
+Output to eval/out/ (tables as CSV/Markdown, plots as PNG/PDF).
+Core metrics per estimator: median error, 90th-percentile error,
+error distribution (km).
 """
 
 from __future__ import annotations
@@ -13,14 +13,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# Dataset-Switch (vgl. data/store): getrennter Output-Ordner fuer separate Laeufe
-# (z. B. RIPE-Atlas-Probes). GEOIP_DATASET=anchors (Default) -> eval/out.
+# Dataset switch (cf. data/store): separate output folder for separate runs
+# (e.g. RIPE Atlas probes). GEOIP_DATASET=anchors (default) -> eval/out.
 _DATASET = (os.environ.get("GEOIP_DATASET") or "anchors").strip() or "anchors"
 OUT_DIR = Path(__file__).resolve().parent / ("out" if _DATASET == "anchors" else f"out_{_DATASET}")
 
 
 def _plt():
-    """matplotlib lazy + headless laden (Kennzahlen brauchen es nicht)."""
+    """Load matplotlib lazily + headless (metrics do not need it)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -28,7 +28,13 @@ def _plt():
 
 
 def error_summary(errors_km) -> dict:
-    """Kennzahlen einer Fehlerreihe (km): n, min/Q1/median/Q3/max, p90, mean."""
+    """Metrics of an error series (km): n, min/Q1/median/Q3/max, p90, mean.
+
+    CAUTION: NaN (= estimator failure) is removed; metrics and coverage thus
+    refer, per estimator, to DIFFERENT denominators (solved cases only). When
+    comparing partially failing estimators, mind the n column
+    (review 2026-08-18; currently latent, no estimator fails).
+    """
     e = np.asarray(errors_km, dtype=float)
     e = e[~np.isnan(e)]
     if e.size == 0:
@@ -48,7 +54,7 @@ def error_summary(errors_km) -> dict:
 
 
 def coverage(errors_km, thresholds=(25, 100, 250)) -> dict:
-    """Anteil der Fälle mit Fehler <= Schwelle (km) — 'Coverage@<km>'."""
+    """Share of cases with error <= threshold (km) — 'Coverage@<km>'."""
     e = np.asarray(errors_km, dtype=float)
     e = e[~np.isnan(e)]
     return {f"cov@{t}km": (float((e <= t).mean()) if e.size else np.nan)
@@ -57,8 +63,8 @@ def coverage(errors_km, thresholds=(25, 100, 250)) -> dict:
 
 def summarize_results(df: pd.DataFrame, coverage_km=(25, 100, 250),
                       sort_by: str | None = "median") -> pd.DataFrame:
-    """Tidy-Ergebnis-Frame (Spalten ``estimator``, ``error_km``) -> Übersicht
-    je Schätzer: Kennzahlen + Coverage@<km>. Eine Zeile je Schätzer."""
+    """Tidy result frame (columns ``estimator``, ``error_km``) -> overview
+    per estimator: metrics + Coverage@<km>. One row per estimator."""
     rows = []
     for name, grp in df.groupby("estimator", sort=False):
         errs = grp["error_km"].to_numpy()
@@ -71,7 +77,7 @@ def summarize_results(df: pd.DataFrame, coverage_km=(25, 100, 250),
 
 
 def save_table(df: pd.DataFrame, name: str) -> Path:
-    """Tabelle nach eval/out/<name>.{csv,md} schreiben."""
+    """Write a table to eval/out/<name>.{csv,md}."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     csv_path = OUT_DIR / f"{name}.csv"
     df.to_csv(csv_path)
@@ -80,26 +86,41 @@ def save_table(df: pd.DataFrame, name: str) -> Path:
 
 
 def errors_by_estimator(df: pd.DataFrame) -> dict:
-    """Tidy-Frame -> {Schätzername: Fehlerreihe (km, NaN entfernt)}."""
+    """Tidy frame -> {estimator name: error series (km, NaN removed)}."""
     return {name: grp["error_km"].dropna().to_numpy()
             for name, grp in df.groupby("estimator", sort=False)}
 
 
 def plot_ecdf(errors: dict, name: str, xmax: float | None = None,
-              xlog: bool = False, title: str | None = None) -> Path:
-    """ECDF der Fehlerdistanz je Schätzer -> eval/out/<name>.png (FF1 / E1)."""
+              xlog: bool = False, title: str | None = None,
+              highlight: set | None = None) -> Path:
+    """ECDF of the error distance per estimator -> eval/out/<name>.png (RQ1 / E1).
+
+    ``highlight``: optional label set — only these colored/labeled,
+    all others grey with one collective legend entry (readability with
+    many lines; review remark 2026-08-19).
+    """
     plt = _plt()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(7, 4.5))
+    grey_labeled = False
     for label, errs in errors.items():
         e = np.sort(np.asarray(errs, dtype=float))
         e = e[~np.isnan(e)]
         if e.size == 0:
             continue
         y = np.arange(1, e.size + 1) / e.size
-        ax.plot(e, y, drawstyle="steps-post", label=f"{label} (n={e.size})")
-    ax.set_xlabel("Haversine-Fehler [km]")
-    ax.set_ylabel("Anteil der Fälle (ECDF)")
+        if highlight is not None and label not in highlight:
+            leg = "other sources/estimators" if not grey_labeled else "_nolegend_"
+            grey_labeled = True
+            ax.plot(e, y, drawstyle="steps-post", color="0.75", lw=0.8,
+                    zorder=1, label=leg)
+            continue
+        lw = 1.8 if highlight is not None else None
+        ax.plot(e, y, drawstyle="steps-post", label=f"{label} (n={e.size})",
+                lw=lw, zorder=3)
+    ax.set_xlabel("Haversine error [km]")
+    ax.set_ylabel("Share of cases (ECDF)")
     if xlog:
         ax.set_xscale("log")
     if xmax:
@@ -107,7 +128,7 @@ def plot_ecdf(errors: dict, name: str, xmax: float | None = None,
     ax.set_ylim(0, 1)
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=8)
-    ax.set_title(title or "Fehlerverteilung je Schätzer")
+    ax.set_title(title or "Error distribution per estimator")
     fig.tight_layout()
     path = OUT_DIR / f"{name}.png"
     fig.savefig(path, dpi=130)
@@ -117,7 +138,7 @@ def plot_ecdf(errors: dict, name: str, xmax: float | None = None,
 
 def plot_error_distribution(errors: dict, name: str, ymax: float | None = None,
                             title: str | None = None) -> Path:
-    """Boxplot der km-Fehler je Schätzer -> eval/out/<name>.png."""
+    """Boxplot of the km errors per estimator -> eval/out/<name>.png."""
     plt = _plt()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     labels, data = [], []
@@ -128,15 +149,15 @@ def plot_error_distribution(errors: dict, name: str, ymax: float | None = None,
             labels.append(label)
             data.append(e)
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    try:  # tick_labels ab matplotlib 3.9; labels davor
+    try:  # tick_labels from matplotlib 3.9 on; labels before that
         ax.boxplot(data, tick_labels=labels, showfliers=True)
     except TypeError:
         ax.boxplot(data, labels=labels, showfliers=True)
-    ax.set_ylabel("Haversine-Fehler [km]")
+    ax.set_ylabel("Haversine error [km]")
     if ymax:
         ax.set_ylim(0, ymax)
     ax.grid(True, axis="y", alpha=0.3)
-    ax.set_title(title or "Fehlerverteilung je Schätzer")
+    ax.set_title(title or "Error distribution per estimator")
     plt.setp(ax.get_xticklabels(), rotation=30, ha="right", fontsize=8)
     fig.tight_layout()
     path = OUT_DIR / f"{name}.png"

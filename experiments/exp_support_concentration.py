@@ -1,35 +1,35 @@
-"""Konfidenz-Maß-Auswahl, vollständig OUT-OF-FOLD: Dispersions- vs. Konzentrationsmaße.
+"""Concentration-measure selection, fully OUT-OF-FOLD: dispersion vs. concentration measures.
 
-Ergänzt exp_spread_measure.py (das nur in-sample AP rechnet) um die ehrliche
-out-of-fold-Bewertung mit derselben 10-fach-stratifizierten Logik wie
-exp_label_calibration.py. Jedes Kandidatenmaß wird als kontinuierlicher Forecast
-fuer das Ereignis "Aggregations-Fehler > tau km" (L1+b) via OOF-Logit bewertet:
+Complements exp_spread_measure.py (which only computes in-sample AP) with the
+honest out-of-fold evaluation using the same 10-fold stratified logic as
+exp_label_calibration.py. Each candidate measure is evaluated as a continuous
+forecast for the event "aggregation error > tau km" (L1+b) via an OOF logit:
 Brier Skill Score (BSS), Average Precision (AP), Expected Calibration Error (ECE).
 
-Hauptbefund (Stütz-Konzentration): der LINIEN-GEWICHTETE Kernanteil S -- Anteil der
-lineage-kollabierten Quellen-Masse innerhalb r km vom L1+b-Schaetzer -- verdreifacht
-die OUT-OF-FOLD-Kalibrierungsguete gegenueber dem median-Paardistanz-Label
-(BSS +0,068 -> +0,210, r=50) und subsumiert den Hub-Flag (core_w+hub aendert nichts).
+Main finding (support concentration): the LINE-WEIGHTED core share S -- share of
+the lineage-collapsed source mass within r km of the L1+b estimator -- triples
+the OUT-OF-FOLD calibration quality over the median pairwise-distance label
+(BSS +0.068 -> +0.210, r=50) and subsumes the hub flag (core_w+hub changes nothing).
 
-Disziplin (Anti-Tuning): r wird NICHT optimiert. Der beste Radius wandert mit der
-Miss-Schwelle tau (Skalen-Matching, s. scale_matching_grid) -- den bestpunktenden zu
-waehlen waere implizites Tunen auf die Bewertungsschwelle. Headline-Radius r=50 km ist
-die vorab spezifizierte City-Skala-Konstante (identisch low_spread/Bucket-Grenze).
+Discipline (anti-tuning): r is NOT optimised. The best radius moves with the
+miss threshold tau (scale matching, see scale_matching_grid) -- picking the best
+scorer would implicitly tune to the evaluation threshold. Headline radius r=50 km
+is the pre-specified city-scale constant (identical to the low_spread/bucket limit).
 
-Triage-Arbeitspunkt (gematchte Flag-Quote 41 % des Vorgaengerlabels): S liegt an der
-Schwelle in einer grossen Bindungsgruppe (identischer S-Wert); die punktgenaue Quote
-ist nur durch Aufteilen der Gruppe erreichbar. Reihenfolge-unabhaengig gilt: Recall
-auf den Misses 72 % -> ~91 % erwartungstreu (Band 86-94 % je nach Bindungsaufloesung);
-strikte Schwelle: 86 % Recall bei nur 29 % Flag-Quote. Die zuvor berichteten
-Arbeitspunkte (92 % Recall bei 41 % Quote, praezise 91,5 %/26,7 %; Quote 20,1 % bei
-Recall >= 72,1 %, Praezision 43,3 %) werden als deklarierte Audit-Zeilen deterministisch
-reproduziert (Konstruktion der Erst-Auswertung: gerundete Quote/Ziel-Recall,
-Bindungsaufloesung per Datenreihenfolge). Details: triage_matched_quote().
+Triage operating point (matched flag quota, 41% of the predecessor label): S sits
+at the threshold inside a large tie group (identical S value); the exact quota is
+only reachable by splitting that group. Order-independent: recall on the misses
+72% -> ~91% unbiased (band 86-94% depending on tie resolution); strict threshold:
+86% recall at only 29% flag quota. The operating points of the first evaluation
+(92% recall at 41% quota, precisely 91.5%/26.7%; quota 20.1% at recall >= 72.1%,
+precision 43.3%) are reproduced deterministically as declared audit rows (rounded
+quota resp. target recall, tie resolution by data order). Details:
+triage_matched_quote().
 
-Aufruf:  python experiments/exp_support_concentration.py
-Ergebnis: Tabellen (stdout) + eval/out/support_concentration_oof.csv
-          + eval/out/support_concentration_triage.csv (Arbeitspunkt-Vergleich)
-          + eval/out/support_concentration.png (BSS-Leiter + Reliability-Diagramm)
+Usage:   python experiments/exp_support_concentration.py
+Output:  tables (stdout) + eval/out/support_concentration_oof.csv
+         + eval/out/support_concentration_triage.csv (operating-point comparison)
+         + eval/out/support_concentration.png (BSS ladder + reliability diagram)
 """
 
 from __future__ import annotations
@@ -49,12 +49,12 @@ import experiments.exp_t6_defaults as T6         # noqa: E402
 OUT = report.OUT_DIR
 RADII = [25, 50, 75, 100]
 TAU = 100.0
-R_HEADLINE = 50           # vorab spezifiziert (City-Skala), NICHT optimiert
+R_HEADLINE = 50           # pre-specified (city scale), NOT optimised
 K, SEED = 10, 0
 
 
 # --------------------------------------------------------------------------- #
-# Merkmals-Konstruktion (pro Anchor)
+# Feature construction (per anchor)
 # --------------------------------------------------------------------------- #
 def build_frame(cases, loo, eps):
     rows = []
@@ -65,7 +65,7 @@ def build_frame(cases, loo, eps):
         w = np.asarray(T6.line_weights_for(prov, "L1"), float)
         w = w / w.sum()
         est = np.array(T6.estimate(c, "L1", "b", loo, eps=eps))
-        d = np.array([haversine_error(tuple(p), tuple(est)) for p in pts])          # Distanz Quelle->Schaetzer
+        d = np.array([haversine_error(tuple(p), tuple(est)) for p in pts])          # distance source->estimator
         pdd = (np.array([haversine_error(tuple(pts[i]), tuple(pts[j]))
                          for i in range(n) for j in range(i + 1, n)])
                if n > 1 else np.array([0.0]))
@@ -80,15 +80,15 @@ def build_frame(cases, loo, eps):
             "err": haversine_error(tuple(est), c["truth"]),
         }
         for R in RADII:
-            r[f"core_u_{R}"] = float((d < R).mean())          # Kernanteil ungewichtet
-            r[f"core_w_{R}"] = float(w[d < R].sum())          # Kernanteil LINIEN-GEWICHTET (= S)
+            r[f"core_u_{R}"] = float((d < R).mean())          # core share, unweighted
+            r[f"core_w_{R}"] = float(w[d < R].sum())          # core share, LINE-WEIGHTED (= S)
             r[f"kde_w_{R}"] = float(np.sum(w * np.exp(-(d / R) ** 2)))
         rows.append(r)
     return pd.DataFrame(rows)
 
 
 # --------------------------------------------------------------------------- #
-# OOF-Logit + Metriken (dependency-frei, identisch zu exp_label_calibration)
+# OOF logit + metrics (dependency-free, identical to exp_label_calibration)
 # --------------------------------------------------------------------------- #
 def folds(y, seed=SEED):
     rng = np.random.default_rng(seed)
@@ -149,19 +149,19 @@ def ece(ph, y, nb=5):
 
 
 # --------------------------------------------------------------------------- #
-# Triage-Vergleich am Arbeitspunkt des Vorgaengerlabels (gematchte Flag-Quote)
+# Triage comparison at the predecessor label's operating point (matched flag quota)
 # --------------------------------------------------------------------------- #
 def triage_matched_quote(df, y, win):
-    """Binaerer Triage-Vergleich: S gegen das 2D-Vorgaengerlabel (Streuung x Hub).
+    """Binary triage comparison: S against the 2D predecessor label (spread x hub).
 
-    Die Flag-Quote wird EXPLIZIT vom Vorgaengerlabel uebernommen (Vergleichs-Design:
-    gleicher Arbeitspunkt, wer markiert mehr Misses?). S ist an der Schwelle massiv
-    gebunden (Bindungsgruppe mit identischem S-Wert); eine punktgenaue Quote ist nur
-    durch Aufteilen dieser Gruppe erreichbar, und welcher Teil genommen wird, ist
-    methodisch unbestimmt. Berichtet werden deshalb reihenfolge-unabhaengig:
-      (a) der erwartungstreue Recall bei anteiliger Bindungsaufloesung,
-      (b) das Band der beiden ehrlichen Schwellen (S < t bzw. S <= t),
-      (c) die fold-interne Kontrolle (Schwelle als Train-Quantil, Recall auf Test).
+    The flag quota is EXPLICITLY taken over from the predecessor label (comparison
+    design: same operating point, who marks more misses?). S is heavily tied at the
+    threshold (tie group with identical S value); an exact quota is only reachable
+    by splitting that group, and which part is taken is methodologically
+    undetermined. Therefore reported, order-independently:
+      (a) the unbiased recall under proportional tie resolution,
+      (b) the band of the two honest thresholds (S < t resp. S <= t),
+      (c) the fold-internal control (threshold as train quantile, recall on test).
     """
     S = df[win].values
     old = (df.med.values >= 50) | df.hub.values.astype(bool)
@@ -169,71 +169,71 @@ def triage_matched_quote(df, y, win):
     q = n_flag / len(y)
     t = float(np.sort(S)[n_flag - 1])
     lo, hi, tie = S < t, S <= t, S == t
-    k = n_flag - int(lo.sum())                       # aus der Bindungsgruppe zu nehmen
+    k = n_flag - int(lo.sum())                       # to be taken from the tie group
     tp_lo, tp_hi, tie_m = int(y[lo].sum()), int(y[hi].sum()), int(y[tie].sum())
-    exp_tp = tp_lo + tie_m * k / int(tie.sum())      # anteilige Bindungsaufloesung
+    exp_tp = tp_lo + tie_m * k / int(tie.sum())      # proportional tie resolution
 
-    # Audit-Rekonstruktion der zuvor berichteten Arbeitspunkte (Konstruktion der
-    # Erst-Auswertung, deterministisch): (1) gerundete 41-%-Quote als Exakt-Anzahl
-    # k = round(0.41*n), Bindungsaufloesung per Datenreihenfolge (stabile Sortierung)
-    # -> Recall 91,5 %, Praezision 26,7 %; (2) erster Punkt der S-Rangfolge mit
-    # Recall >= 72,1 % (gerundeter Vorgaengerlabel-Recall, vgl. prec_at_recall in
-    # exp_spread_measure.py) -> Quote 20,1 %, Praezision 43,3 %. Beides konkrete
-    # Bindungsaufloesungen, keine methodische Aussage -- die tragen die
-    # erwartungstreue Zeile und das Band oben.
+    # Audit reconstruction of the first evaluation's operating points
+    # (deterministic): (1) rounded 41% quota as an exact count k = round(0.41*n),
+    # tie resolution by data order (stable sort)
+    # -> recall 91.5%, precision 26.7%; (2) first point of the S ranking with
+    # recall >= 72.1% (rounded predecessor-label recall, cf. prec_at_recall in
+    # exp_spread_measure.py) -> quota 20.1%, precision 43.3%. Both are concrete
+    # tie resolutions, not a methodological statement -- that is carried by the
+    # unbiased row and the band above.
     o = np.argsort(S, kind="stable")
     k41 = int(round(0.41 * len(y)))
     ex = np.zeros(len(y), bool)
     ex[o[:k41]] = True
     tp_ex = int(y[ex].sum())
     tgt = round(float(old[y == 1].mean()), 3)
-    o72 = np.argsort(S)          # Default-argsort = Bindungsreihenfolge von prec_at_recall
+    o72 = np.argsort(S)          # default argsort = tie order of prec_at_recall
     tp_seq = np.cumsum(y[o72])
     k72 = int(np.argmax(tp_seq / miss >= tgt)) + 1
     tp72 = int(tp_seq[k72 - 1])
 
-    # fold-interne Kontrolle: Schwelle nur aus den Trainingsfolds (strikt, S < t_fold)
+    # fold-internal control: threshold from the training folds only (strict, S < t_fold)
     F = folds(y)
     fl = np.zeros(len(y), bool)
     for fi in range(K):
         tr, te = F != fi, F == fi
         fl[te] = S[te] < np.quantile(S[tr], old[tr].mean())
 
-    print("\nTRIAGE bei gematchter Flag-Quote (Arbeitspunkt des Vorgaengerlabels):")
-    print(f"  Vorgaengerlabel:      Quote {q:.1%}, Recall {old[y == 1].mean():.1%}, "
-          f"Praezision {y[old].mean():.1%}")
-    print(f"  S-Bindungsgruppe an der Schwelle t={t:.4f}: {int(tie.sum())} Anchors "
-          f"({tie_m} Misses), davon {k} zu flaggen -> punktgenaue Quote nur per Aufteilung")
-    print(f"  S strikt   (S < t):   Quote {lo.mean():.1%}, Recall {tp_lo / miss:.1%}, "
-          f"Praezision {tp_lo / int(lo.sum()):.1%}")
-    print(f"  S inklusiv (S <= t):  Quote {hi.mean():.1%}, Recall {tp_hi / miss:.1%}, "
-          f"Praezision {tp_hi / int(hi.sum()):.1%}")
-    print(f"  S erwartungstreu bei Quote {q:.1%} (anteilige Bindungsaufloesung): "
-          f"Recall {exp_tp / miss:.1%}, Praezision {exp_tp / n_flag:.1%}")
-    print(f"  S Audit 1 (Quote gerundet 41 % = {k41} Flags, Ties per Datenreihenfolge; "
-          f"zuvor berichtet): Recall {tp_ex / miss:.1%}, Praezision {tp_ex / k41:.1%}")
-    print(f"  S Audit 2 (erster Rangfolge-Punkt mit Recall >= {tgt:.1%}; zuvor berichtet): "
-          f"Quote {k72 / len(y):.1%}, Recall {tp72 / miss:.1%}, Praezision {tp72 / k72:.1%}")
-    print(f"  fold-interne Schwelle (Train-Quantil): Quote {fl.mean():.1%}, "
-          f"Recall {fl[y == 1].mean():.1%}, Praezision {y[fl].mean():.1%}")
+    print("\nTRIAGE at matched flag quota (operating point of the predecessor label):")
+    print(f"  predecessor label:    quota {q:.1%}, recall {old[y == 1].mean():.1%}, "
+          f"precision {y[old].mean():.1%}")
+    print(f"  S tie group at threshold t={t:.4f}: {int(tie.sum())} anchors "
+          f"({tie_m} misses), of which {k} to flag -> exact quota only via splitting")
+    print(f"  S strict    (S < t):  quota {lo.mean():.1%}, recall {tp_lo / miss:.1%}, "
+          f"precision {tp_lo / int(lo.sum()):.1%}")
+    print(f"  S inclusive (S <= t): quota {hi.mean():.1%}, recall {tp_hi / miss:.1%}, "
+          f"precision {tp_hi / int(hi.sum()):.1%}")
+    print(f"  S unbiased at quota {q:.1%} (proportional tie resolution): "
+          f"recall {exp_tp / miss:.1%}, precision {exp_tp / n_flag:.1%}")
+    print(f"  S audit 1 (quota rounded 41 % = {k41} flags, ties by data order; "
+          f"first evaluation): recall {tp_ex / miss:.1%}, precision {tp_ex / k41:.1%}")
+    print(f"  S audit 2 (first ranking point with recall >= {tgt:.1%}; first evaluation): "
+          f"quota {k72 / len(y):.1%}, recall {tp72 / miss:.1%}, precision {tp72 / k72:.1%}")
+    print(f"  fold-internal threshold (train quantile): quota {fl.mean():.1%}, "
+          f"recall {fl[y == 1].mean():.1%}, precision {y[fl].mean():.1%}")
 
     rows = [
-        {"flag_rule": "Vorgaengerlabel (Streuung>=50 ODER Hub)", "flag_quote": round(q, 3),
+        {"flag_rule": "predecessor label (spread>=50 OR hub)", "flag_quote": round(q, 3),
          "recall_misses": round(float(old[y == 1].mean()), 3), "precision": round(float(y[old].mean()), 3)},
-        {"flag_rule": f"S < {t:.4f} (strikt)", "flag_quote": round(float(lo.mean()), 3),
+        {"flag_rule": f"S < {t:.4f} (strict)", "flag_quote": round(float(lo.mean()), 3),
          "recall_misses": round(tp_lo / miss, 3), "precision": round(tp_lo / int(lo.sum()), 3)},
-        {"flag_rule": f"S <= {t:.4f} (inklusiv)", "flag_quote": round(float(hi.mean()), 3),
+        {"flag_rule": f"S <= {t:.4f} (inclusive)", "flag_quote": round(float(hi.mean()), 3),
          "recall_misses": round(tp_hi / miss, 3), "precision": round(tp_hi / int(hi.sum()), 3)},
-        {"flag_rule": "S, gematchte Quote, anteilige Bindungsaufloesung (Erwartungswert)",
+        {"flag_rule": "S, matched quota, proportional tie resolution (expected value)",
          "flag_quote": round(q, 3), "recall_misses": round(exp_tp / miss, 3),
          "precision": round(exp_tp / n_flag, 3)},
-        {"flag_rule": "S, Quote gerundet 41 %, Bindungsaufloesung per Datenreihenfolge (Audit; zuvor berichtet)",
+        {"flag_rule": "S, quota rounded 41 %, tie resolution by data order (audit; first evaluation)",
          "flag_quote": round(k41 / len(y), 3), "recall_misses": round(tp_ex / miss, 3),
          "precision": round(tp_ex / k41, 3)},
-        {"flag_rule": "S, erster Rangfolge-Punkt mit Recall >= 72,1 % (Audit; zuvor berichtet)",
+        {"flag_rule": "S, first ranking point with recall >= 72.1 % (audit; first evaluation)",
          "flag_quote": round(k72 / len(y), 3), "recall_misses": round(tp72 / miss, 3),
          "precision": round(tp72 / k72, 3)},
-        {"flag_rule": "S < Train-Quantil (fold-intern, 10-fach)", "flag_quote": round(float(fl.mean()), 3),
+        {"flag_rule": "S < train quantile (fold-internal, 10-fold)", "flag_quote": round(float(fl.mean()), 3),
          "recall_misses": round(float(fl[y == 1].mean()), 3), "precision": round(float(y[fl].mean()), 3)},
     ]
     pd.DataFrame(rows).to_csv(OUT / "support_concentration_triage.csv", index=False)
@@ -241,18 +241,18 @@ def triage_matched_quote(df, y, win):
 
 
 # --------------------------------------------------------------------------- #
-# Abbildung: BSS-Leiter (links) + OOF-Reliability des Siegers (rechts)
+# Figure: BSS ladder (left) + OOF reliability of the winner (right)
 # --------------------------------------------------------------------------- #
 def plot(ladder, ph_win, y, name="support_concentration"):
     plt = report._plt()
     OUT.mkdir(parents=True, exist_ok=True)
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(11, 4.4))
 
-    # (links) OOF-BSS je Maß
+    # (left) OOF BSS per measure
     labels = [l[0] for l in ladder]
     vals = [l[1] for l in ladder]
     colors = ["tab:gray"] * len(vals)
-    colors[-1] = "tab:green"   # Sieger hervorheben
+    colors[-1] = "tab:green"   # highlight the winner
     ypos = np.arange(len(vals))
     axL.barh(ypos, vals, color=colors)
     axL.set_yticks(ypos)
@@ -260,12 +260,12 @@ def plot(ladder, ph_win, y, name="support_concentration"):
     axL.invert_yaxis()
     for i, v in enumerate(vals):
         axL.text(v + 0.004, i, f"{v:+.3f}", va="center", fontsize=8)
-    axL.set_xlabel("OOF Brier Skill Score (höher = besser)")
-    axL.set_title("Konfidenzmaße out-of-fold\n(Ereignis: L1+b-Fehler > 100 km)")
+    axL.set_xlabel("OOF Brier Skill Score (higher = better)")
+    axL.set_title("concentration measures out-of-fold\n(event: L1+b error > 100 km)")
     axL.axvline(0, color="k", lw=0.8)
     axL.grid(True, axis="x", alpha=0.3)
 
-    # (rechts) Reliability-Diagramm des Siegers (OOF, Quantil-Bins)
+    # (right) reliability diagram of the winner (OOF, quantile bins)
     edges = np.unique(np.quantile(ph_win, np.linspace(0, 1, 6)))
     idx = np.clip(np.digitize(ph_win, edges[1:-1]), 0, len(edges) - 2)
     fx, oy, sz = [], [], []
@@ -274,13 +274,13 @@ def plot(ladder, ph_win, y, name="support_concentration"):
         if m.sum():
             fx.append(ph_win[m].mean()); oy.append(y[m].mean()); sz.append(m.sum())
     hi = max(max(fx), max(oy)) * 1.1
-    axR.plot([0, hi], [0, hi], "k--", alpha=0.5, label="perfekt kalibriert")
-    axR.plot(fx, oy, "o-", color="tab:green", label="Stütz-Konzentration $S$ (OOF)")
-    axR.axhline(y.mean(), color="tab:red", lw=0.8, ls=":", label=f"Basisrate {y.mean():.2f}")
+    axR.plot([0, hi], [0, hi], "k--", alpha=0.5, label="perfectly calibrated")
+    axR.plot(fx, oy, "o-", color="tab:green", label="support concentration $S$ (OOF)")
+    axR.axhline(y.mean(), color="tab:red", lw=0.8, ls=":", label=f"base rate {y.mean():.2f}")
     axR.set_xlim(0, hi); axR.set_ylim(0, hi)
-    axR.set_xlabel("vorhergesagte Miss-Wahrscheinlichkeit")
-    axR.set_ylabel("beobachtete Miss-Rate (out-of-fold)")
-    axR.set_title(f"Reliability: linien-gew. Stütz-Konzentration r={R_HEADLINE}")
+    axR.set_xlabel("predicted miss probability")
+    axR.set_ylabel("observed miss rate (out-of-fold)")
+    axR.set_title(f"reliability: line-weighted support concentration r={R_HEADLINE}")
     axR.grid(True, alpha=0.3); axR.legend(fontsize=8)
 
     fig.tight_layout()
@@ -300,28 +300,29 @@ def run():
     win = f"core_w_{R_HEADLINE}"
 
     print("=" * 80)
-    print(f"OOF-KONFIDENZMASS-VERGLEICH  (Ereignis: L1+b-Fehler > {TAU:.0f} km, {K}-fach OOF)")
-    print(f"n={len(df)}  Misses={int(y.sum())}  Basisrate={y.mean():.3f}  "
-          f"(nlines {df.nlines.min()}-{df.nlines.max()}, Einzelquell-Faelle={int((df.nlines < 2).sum())})")
+    print(f"OOF CONCENTRATION-MEASURE COMPARISON  (event: L1+b error > {TAU:.0f} km, {K}-fold OOF)")
+    print(f"n={len(df)}  misses={int(y.sum())}  base rate={y.mean():.3f}  "
+          f"(sources per case {df.nlines.min():.0f}-{df.nlines.max():.0f}, "
+          f"single-source cases={int((df.nlines < 2).sum())}; source-, not line-based)")
     print("=" * 80)
 
     candidates = [
-        ("median pairwise (alt)", ["med"]),
-        ("median + hub (ALTES LABEL)", ["med", "hub"]),
+        ("median pairwise (old)", ["med"]),
+        ("median + hub (OLD LABEL)", ["med", "hub"]),
         ("mean pairwise", ["mean"]),
         ("max pairwise", ["max_pw"]),
         ("q75 pairwise", ["q75"]),
         ("q90 pairwise", ["q90"]),
-        ("groesste Luecke (gap)", ["gap"]),
-        ("mean dist->Schaetzer", ["mean_d"]),
-        ("max dist->Schaetzer", ["max_d"]),
-        (f"Kernanteil ungew. r={R_HEADLINE}", [f"core_u_{R_HEADLINE}"]),
-        (f"Stuetz-Konz. GEWICHTET r={R_HEADLINE} (S)", [win]),
-        (f"KDE-Konz. gew. r={R_HEADLINE}", [f"kde_w_{R_HEADLINE}"]),
+        ("largest gap (gap)", ["gap"]),
+        ("mean dist->estimator", ["mean_d"]),
+        ("max dist->estimator", ["max_d"]),
+        (f"core share unw. r={R_HEADLINE}", [f"core_u_{R_HEADLINE}"]),
+        (f"support conc. WEIGHTED r={R_HEADLINE} (S)", [win]),
+        (f"KDE conc. wgt. r={R_HEADLINE}", [f"kde_w_{R_HEADLINE}"]),
         (f"S + hub", [win, "hub"]),
     ]
     out_rows, ph_cache = [], {}
-    print(f"\n{'Maß':40s} {'OOF-BSS':>8s} {'OOF-AP':>7s} {'OOF-ECE':>8s}")
+    print(f"\n{'measure':40s} {'OOF-BSS':>8s} {'OOF-AP':>7s} {'OOF-ECE':>8s}")
     for label, cols in candidates:
         ph = oof_predict(df, cols, y)
         ph_cache[label] = ph
@@ -329,23 +330,23 @@ def run():
         print(f"{label:40s} {b:+8.3f} {a:7.3f} {e:8.3f}")
         out_rows.append({"measure": label, "oof_bss": round(b, 3), "oof_ap": round(a, 3), "oof_ece": round(e, 3)})
 
-    print("\nRadius-Robustheit & Lineage-Kontrolle (Kernanteil, OOF-BSS):")
-    print(f"  {'r':>5s}  {'ungewichtet':>12s}  {'GEWICHTET':>10s}")
+    print("\nradius robustness & lineage control (core share, OOF-BSS):")
+    print(f"  {'r':>5s}  {'unweighted':>12s}  {'WEIGHTED':>10s}")
     for R in RADII:
         bu = bss(oof_predict(df, [f"core_u_{R}"], y), y)
         bw = bss(oof_predict(df, [f"core_w_{R}"], y), y)
         print(f"  {R:5d}  {bu:+12.3f}  {bw:+10.3f}")
-        out_rows.append({"measure": f"core r={R} ungew", "oof_bss": round(bu, 3), "oof_ap": "", "oof_ece": ""})
-        out_rows.append({"measure": f"core r={R} GEW", "oof_bss": round(bw, 3), "oof_ap": "", "oof_ece": ""})
+        out_rows.append({"measure": f"core r={R} unw", "oof_bss": round(bu, 3), "oof_ap": "", "oof_ece": ""})
+        out_rows.append({"measure": f"core r={R} WGT", "oof_bss": round(bw, 3), "oof_ap": "", "oof_ece": ""})
 
-    # Seed-Robustheit (Sieger vs altes Label)
-    print("\nSeed-Robustheit (OOF-BSS über 5 Fold-Seeds):")
-    for label, cols in [("altes Label (med+hub)", ["med", "hub"]), (f"S (core_w_{R_HEADLINE})", [win])]:
+    # Seed robustness (winner vs old label)
+    print("\nseed robustness (OOF-BSS over 5 fold seeds):")
+    for label, cols in [("old label (med+hub)", ["med", "hub"]), (f"S (core_w_{R_HEADLINE})", [win])]:
         v = [bss(oof_predict(df, cols, y, seed=s), y) for s in range(5)]
         print(f"  {label:24s} mean={np.mean(v):+.3f}  [{min(v):+.3f}, {max(v):+.3f}]")
 
-    # Bootstrap-CI: Sieger vs altes Label
-    ph_w, ph_m = ph_cache[f"Stuetz-Konz. GEWICHTET r={R_HEADLINE} (S)"], ph_cache["median + hub (ALTES LABEL)"]
+    # Bootstrap CI: winner vs old label
+    ph_w, ph_m = ph_cache[f"support conc. WEIGHTED r={R_HEADLINE} (S)"], ph_cache["median + hub (OLD LABEL)"]
     rng = np.random.default_rng(SEED)
     diffs = []
     for _ in range(2000):
@@ -355,14 +356,38 @@ def run():
         base = bb * (1 - bb)
         diffs.append((1 - np.mean((ph_w[idx] - yy) ** 2) / base) - (1 - np.mean((ph_m[idx] - yy) ** 2) / base))
     lo, hi = np.percentile(diffs, [2.5, 97.5])
-    print(f"\nBootstrap (2000x): BSS-Differenz S minus ALTES LABEL = {np.mean(diffs):+.3f}  "
-          f"95%-CI [{lo:+.3f}, {hi:+.3f}]  (>0 => real besser)")
+    print(f"\nbootstrap (2000x): BSS difference S minus OLD LABEL = {np.mean(diffs):+.3f}  "
+          f"95% CI [{lo:+.3f}, {hi:+.3f}]  (>0 => genuinely better)")
     out_rows.append({"measure": "BOOTSTRAP diff S-(med+hub)", "oof_bss": round(float(np.mean(diffs)), 3),
                      "oof_ap": f"CI[{lo:+.3f},{hi:+.3f}]", "oof_ece": ""})
 
-    # Skalen-Matching-Gitter (Anti-Tuning-Nachweis)
-    print("\nSkalen-Matching (OOF-BSS, gew. Kernanteil): wandert bestes r mit tau? (=> r vorab fixieren)")
-    print(f"  {'tau\\\\r':9s}" + "".join(f"r={R:<6d}" for R in RADII))
+    # Murphy decomposition of the OOF forecast (Brier = reliability - resolution +
+    # uncertainty), quantile-binned like ece() -- review addition 2026-08-18:
+    # separates whether the BSS advantage stems from calibration (small
+    # reliability) or discrimination (large resolution).
+    def murphy_binned(ph, yy, nb=5):
+        e = np.unique(np.quantile(ph, np.linspace(0, 1, nb + 1)))
+        b = np.clip(np.digitize(ph, e[1:-1]), 0, len(e) - 2)
+        base = yy.mean()
+        rel = res = 0.0
+        for k in range(len(e) - 1):
+            m = b == k
+            if m.sum():
+                rel += m.mean() * (ph[m].mean() - yy[m].mean()) ** 2
+                res += m.mean() * (yy[m].mean() - base) ** 2
+        return rel, res, float(base * (1 - base))
+    print("\nMurphy decomposition (quantile-binned, 5 bins): reliability / resolution / uncertainty")
+    for label, ph in (("S (core_w_50)", ph_w), ("old label (med+hub)", ph_m)):
+        rel, res, unc = murphy_binned(ph, y)
+        print(f"  {label:24s} {rel:.4f} / {res:.4f} / {unc:.4f}   "
+              f"(Brier {np.mean((ph - y) ** 2):.4f})")
+        out_rows.append({"measure": f"MURPHY {label}",
+                         "oof_bss": round(rel, 4), "oof_ap": round(res, 4),
+                         "oof_ece": round(unc, 4)})
+
+    # Scale-matching grid (anti-tuning evidence)
+    print("\nscale matching (OOF-BSS, wgt. core share): does the best r move with tau? (=> fix r in advance)")
+    print(f"  {'tau\\r':9s}" + "".join(f"r={R:<6d}" for R in RADII))
     for tau in (50, 100, 200):
         yt = (df.err > tau).astype(int).values
         vals = [bss(oof_predict(df, [f"core_w_{R}"], yt), yt) for R in RADII]
@@ -371,15 +396,15 @@ def run():
 
     pd.DataFrame(out_rows).to_csv(OUT / "support_concentration_oof.csv", index=False)
 
-    # Triage-Arbeitspunkt-Vergleich (gematchte Flag-Quote, Bindungen explizit)
+    # Triage operating-point comparison (matched flag quota, ties explicit)
     triage_matched_quote(df, y, win)
 
-    # Abbildung
-    ladder = [("median pairwise", bss(ph_cache["median pairwise (alt)"], y)),
-              ("median + hub (altes Label)", bss(ph_cache["median + hub (ALTES LABEL)"], y)),
-              ("mean dist->Schätzer", bss(ph_cache["mean dist->Schaetzer"], y)),
-              (f"Kernanteil ungew. r={R_HEADLINE}", bss(ph_cache[f"Kernanteil ungew. r={R_HEADLINE}"], y)),
-              (f"Stütz-Konz. GEW. r={R_HEADLINE} (S)", bss(ph_w, y))]
+    # Figure
+    ladder = [("median pairwise", bss(ph_cache["median pairwise (old)"], y)),
+              ("median + hub (old label)", bss(ph_cache["median + hub (OLD LABEL)"], y)),
+              ("mean dist->estimator", bss(ph_cache["mean dist->estimator"], y)),
+              (f"core share unw. r={R_HEADLINE}", bss(ph_cache[f"core share unw. r={R_HEADLINE}"], y)),
+              (f"support conc. WEIGHTED r={R_HEADLINE} (S)", bss(ph_w, y))]
     fig_path = plot(ladder, ph_w, y)
     print(f"\nCSV: {OUT}/support_concentration_oof.csv")
     print(f"PNG: {fig_path}")

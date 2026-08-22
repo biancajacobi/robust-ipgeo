@@ -1,49 +1,49 @@
-"""Hub-/Centroid-Default-Erkennung für Geo-DB-Ausgaben.
+"""Hub/centroid default detection for geo-DB outputs.
 
-Viele Geo-DBs setzen für schlecht lokalisierbare IPs einen **Fallback-Punkt**
-(Länder-/Regions-Schwerpunkt oder einen großen Hub wie Frankfurt/Amsterdam/
-Singapur), statt zuzugeben „weiß ich nicht". Solche Pseudo-Punkte sind keine
-Messung, sondern eine Heuristik der Quelle — und sie verzerren einen Punkt-
-schätzer systematisch. Dieses Modul flaggt sie.
+Many geo DBs place a **fallback point** for poorly localizable IPs
+(country/region centroid or a large hub such as Frankfurt/Amsterdam/
+Singapore) instead of admitting "I don't know". Such pseudo-points are not a
+measurement but a heuristic of the source — and they bias a point estimator
+systematically. This module flags them.
 
-Weil DB-IP/IP2Location (anders als MaxMind) **keinen** ``accuracy_radius`` liefern,
-gibt es zwei bewusst unterschiedlich strenge Wächter; beide werden berichtet:
+Because DB-IP/IP2Location (unlike MaxMind) provide **no** ``accuracy_radius``,
+there are two deliberately different-strictness guards; both are reported:
 
-  WÄCHTER A (konservativ, Untergrenze): ein Hub-Punkt zählt nur als Default, wenn
-    zusätzlich der ASN auf ihn *kollabiert* (>= ASN_COLLAPSE der IPs eines ASN auf
-    demselben Punkt). Verpasst Per-IP-/Sub-ASN-Defaults, flaggt aber keine echten
-    regionalen Stadt-ISPs falsch.
-  WÄCHTER B (liberal, Obergrenze): jeder Punkt auf einem Frequenz-Hub oder einem
-    bekannten Geo-Mittelpunkt zählt als Default (ohne ASN-Bedingung).
+  GUARD A (conservative, lower bound): a hub point only counts as a default if
+    additionally the ASN *collapses* onto it (>= ASN_COLLAPSE of an ASN's IPs on
+    the same point). Misses per-IP/sub-ASN defaults, but does not falsely flag
+    genuine regional city ISPs.
+  GUARD B (liberal, upper bound): any point on a frequency hub or a known
+    geographic centroid counts as a default (without the ASN condition).
 
-Beide Wächter teilen zwei *saubere Per-IP-Signale*: ``city is None`` (Quelle gibt
-keine Stadt zurück) und — nur MaxMind — ``accuracy_radius >= MM_RADIUS_DEFAULT``.
+Both guards share two *clean per-IP signals*: ``city is None`` (source returns
+no city) and — MaxMind only — ``accuracy_radius >= MM_RADIUS_DEFAULT``.
 
-Die Hub-Liste ist **datenabgeleitet** (Koordinaten-Häufigkeit über den Datensatz),
-ergänzt um eine kleine manuelle Liste geografischer Mittelpunkte. Schwellen sind
-hier **eingefroren** (Stand 2026-06-04) und VOR der Messung festgelegt, damit die
-Auswertung nicht nach Heuristik-Tuning aussieht.
+The hub list is **data-derived** (coordinate frequency across the dataset),
+supplemented by a small manual list of geographic centroids. Thresholds are
+**frozen** here (as of 2026-06-04) and were fixed BEFORE the measurement so the
+evaluation does not look like heuristic tuning.
 """
 
 from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-# --- eingefrorene Schwellen (vor der Messung festgelegt) ---
-FREQ_HUB = 10            # >= N IPs auf exakt derselben Koordinate -> Frequenz-Hub
-HUB_STRONG = 50          # >= N -> dominanter datenabgeleiteter Mittelpunkt (Doku)
-ASN_COLLAPSE = 0.90      # Anteil der IPs eines ASN auf demselben Punkt -> Kollaps (A)
-CENTROID_TOL = 0.10      # Grad-Toleranz für Match gegen bekannte Geo-Mittelpunkte
-MM_RADIUS_DEFAULT = 500  # MaxMind accuracy_radius (km), ab dem ein Treffer grob ist
+# --- frozen thresholds (fixed before the measurement) ---
+FREQ_HUB = 10            # >= N IPs on exactly the same coordinate -> frequency hub
+HUB_STRONG = 50          # >= N -> dominant data-derived centroid (documentation)
+ASN_COLLAPSE = 0.90      # share of an ASN's IPs on the same point -> collapse (A)
+CENTROID_TOL = 0.10      # degree tolerance for matching against known geo centroids
+MM_RADIUS_DEFAULT = 500  # MaxMind accuracy_radius (km) above which a hit is coarse
 
-# Bekannte geografische Mittelpunkte (manueller Startpunkt; die eigentliche
-# Hub-Liste wird datenabgeleitet ergänzt, s. build_index).
+# Known geographic centroids (manual starting point; the actual hub list is
+# supplemented data-derived, see build_index).
 KNOWN_CENTROIDS = [
-    (37.751, -97.822),   # MaxMind US-Fallback (~Kansas)
-    (39.828, -98.579),   # geografischer US-Mittelpunkt
-    (51.165, 10.452),    # DE geografische Mitte
-    (46.603, 1.888),     # FR geografische Mitte
-    (47.001, 8.014),     # CH geografische Mitte
+    (37.751, -97.822),   # MaxMind US fallback (~Kansas)
+    (39.828, -98.579),   # geographic center of the US
+    (51.165, 10.452),    # geographic center of DE
+    (46.603, 1.888),     # geographic center of FR
+    (47.001, 8.014),     # geographic center of CH
 ]
 
 
@@ -57,11 +57,11 @@ def _near_known(c):
 
 
 def build_index(records):
-    """records: iterable von dict(source, ip, lat, lon, city, country, radius, asn).
+    """records: iterable of dict(source, ip, lat, lon, city, country, radius, asn).
 
-    Rückgabe: (freq, asn_dom)
-      freq[source]    Counter{coord: n}  — Häufigkeit jeder Koordinate je Quelle
-      asn_dom[s][asn] (dominante_coord, anteil) — größter Koordinaten-Anteil im ASN
+    Returns: (freq, asn_dom)
+      freq[source]    Counter{coord: n}  — frequency of each coordinate per source
+      asn_dom[s][asn] (dominant_coord, share) — largest coordinate share within the ASN
     """
     freq = defaultdict(Counter)
     asn_coords = defaultdict(lambda: defaultdict(Counter))
@@ -82,19 +82,19 @@ def build_index(records):
 
 
 def hub_list(freq, source, threshold=HUB_STRONG):
-    """Datenabgeleitete dominante Mittelpunkte einer Quelle (für Doku/Reporting)."""
+    """Data-derived dominant centroids of a source (for documentation/reporting)."""
     return {c: n for c, n in freq[source].items() if n >= threshold}
 
 
 def is_default(r, guard, freq, asn_dom):
-    """True/False, ob (source, ip) ein Hub-/Centroid-Default ist; None ohne Daten.
+    """True/False whether (source, ip) is a hub/centroid default; None without data.
 
-    guard: 'A' (konservativ, mit ASN-Kollaps) oder 'B' (liberal, nur Hub).
+    guard: 'A' (conservative, with ASN collapse) or 'B' (liberal, hub only).
     """
     if r.get("lat") is None:
         return None
     c = round_coord(r["lat"], r["lon"])
-    # gemeinsame, saubere Per-IP-Signale (beide Wächter)
+    # shared, clean per-IP signals (both guards)
     if not r.get("city"):
         return True
     if r["source"] == "maxmind_geolite2" and r.get("radius") and r["radius"] >= MM_RADIUS_DEFAULT:
@@ -102,19 +102,19 @@ def is_default(r, guard, freq, asn_dom):
     is_hub = freq[r["source"]][c] >= FREQ_HUB or _near_known(c)
     if guard == "B":
         return is_hub
-    # Wächter A: Hub UND ASN-Kollaps auf genau diesen Punkt
+    # guard A: hub AND ASN collapse onto exactly this point
     dom = asn_dom.get(r["source"], {}).get(r.get("asn"))
     asn_collapsed = dom is not None and dom[0] == c and dom[1] >= ASN_COLLAPSE
     return is_hub and asn_collapsed
 
 
 def detect(r, freq):
-    """Für die Annotation der Beobachtungen: (is_default_centroid, centroid_match).
+    """For annotating the observations: (is_default_centroid, centroid_match).
 
-    Verwendet Wächter B (liberal) — der per-Beobachtung sinnvolle „liegt auf einem
-    bekannten Hub?"-Flag (genau die Hub-Achse der 2D-Konfidenzmatrix). ``centroid_match``
-    erklärt den Treffer (Grund bzw. Hub-Koordinate). Wächter A (ASN-bedingt) wird in
-    den Experimenten aus den Rohfeldern nachgerechnet.
+    Uses guard B (liberal) — the per-observation meaningful "lies on a known
+    hub?" flag (exactly the hub axis of the 2D predecessor-label matrix). ``centroid_match``
+    explains the hit (reason or hub coordinate). Guard A (ASN-conditioned) is
+    recomputed from the raw fields in the experiments.
     """
     if r.get("lat") is None:
         return False, ""

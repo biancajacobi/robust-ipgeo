@@ -1,19 +1,19 @@
-"""T?-Validierung: Ist der Mechanismus hinter der DB-IP↔IP2Location-Fehlerkopplung
-wirklich der geteilte WHOIS-/Registrierungs-Eintrag (common-mode failure)?
+"""Validation: is the mechanism behind the DB-IP↔IP2Location error coupling
+really the shared WHOIS/registration entry (common-mode failure)?
 
-Vorgehen:
-  1. Co-Failure-Set bilden: IPs, bei denen DB-IP und IP2Location auf ~denselben
-     Punkt fallen (< AGREE_KM) UND beide weit von der Ground Truth (> WRONG_KM).
-     Das ist das gemeinsame Versagens-Ereignis, dessen Ursache wir prüfen.
-  2. Für diese IPs per RDAP (rdap.org → zuständiger RIR) das Registrierungs-Land
-     und die Registranten-Org ziehen — gecacht + als Beweisstück in der Provenance-
-     Hashkette (forensisch reproduzierbar gegen die festgehaltenen Antworten).
-  3. Mechanismus-Test: fällt das (falsche) DB-Land mit dem RDAP-Land zusammen und
-     weicht es vom Anchor-Land ab? → DBs sind dem Registrierungs-Land gefolgt.
-  4. Gratis-Beobachtung: verhalten sich die Web-APIs (ip_api/ipwho_is/ipapi_co) auf
-     denselben IPs gleich (auch WHOIS-Falle) oder abweichend (eigene, dritte Linie)?
+Approach:
+  1. Build the co-failure set: IPs where DB-IP and IP2Location fall onto ~the
+     same point (< AGREE_KM) AND both are far from the ground truth (> WRONG_KM).
+     That is the joint failure event whose cause we examine.
+  2. For these IPs, pull the registration country and the registrant org via
+     RDAP (rdap.org → responsible RIR) — cached + as an exhibit in the
+     provenance hash chain (forensically reproducible against the recorded responses).
+  3. Mechanism test: does the (wrong) DB country coincide with the RDAP country
+     while deviating from the anchor country? → the DBs followed the registration country.
+  4. Free observation: do the web APIs (ip_api/ipwho_is/ipapi_co) behave the
+     same on the same IPs (also the WHOIS trap) or differently (own, third line)?
 
-Aufruf:  python experiments/exp_whois_mechanism.py
+Invocation:  python experiments/exp_whois_mechanism.py
 """
 
 from __future__ import annotations
@@ -33,12 +33,12 @@ from data import store  # noqa: E402
 import geoip2.database  # noqa: E402
 import IP2Location  # noqa: E402
 
-AGREE_KM = 50      # DB-IP und IP2Location gelten als "einig", wenn näher als das
-WRONG_KM = 200     # ... und beide gelten als "falsch", wenn weiter von GT als das
+AGREE_KM = 50      # DB-IP and IP2Location count as "in agreement" if closer than this
+WRONG_KM = 200     # ... and both count as "wrong" if farther from GT than this
 RDAP_URL = "https://rdap.org/ip/{ip}"
 RDAP_CACHE = store.CACHE_DIR / "rdap_cache.jsonl"
 THROTTLE = 0.5
-UA = "robust-geoip-reference/research (academic; contact via repo)"
+UA = "robust-ipgeo/research (academic; contact via repo)"
 
 
 def hav(la1, lo1, la2, lo2):
@@ -50,7 +50,7 @@ def hav(la1, lo1, la2, lo2):
 
 
 def co_failure_set():
-    """(ip, anchor_country, db_country, ip2_country, point, db_err) für Common-Mode-IPs."""
+    """(ip, anchor_country, db_country, ip2_country, point, db_err) for common-mode IPs."""
     anchors = store.load_anchors_csv()
     dbip = geoip2.database.Reader("data/db/dbip-city-lite-2026-06.mmdb")
     ip2 = IP2Location.IP2Location("data/db/IP2LOCATION-LITE-DB5.BIN")
@@ -92,7 +92,7 @@ def load_rdap_cache():
 
 
 def rdap_country_and_org(body: dict):
-    """Registrierungs-Land + Registranten-Org aus einer RDAP-Antwort ziehen."""
+    """Extract registration country + registrant org from an RDAP response."""
     country = body.get("country")
     org = None
     for e in body.get("entities", []) or []:
@@ -113,7 +113,7 @@ def rdap_country_and_org(body: dict):
 
 
 def fetch_rdap(ips):
-    """RDAP für die IPs holen (Cache + Provenance-Beweisstück). Rückgabe: {ip: entry}."""
+    """Fetch RDAP for the IPs (cache + provenance exhibit). Returns: {ip: entry}."""
     cache = load_rdap_cache()
     evidence, new = [], 0
     for ip in ips:
@@ -134,7 +134,7 @@ def fetch_rdap(ips):
         cache[ip] = entry
         evidence.append(entry)
         new += 1
-    # Beweisstück dieses Laufs + Ledger-Eintrag (nur wenn neu geholt wurde)
+    # exhibit of this run + ledger entry (only if anything new was fetched)
     if new:
         fetch_id = store.new_fetch_id()
         raw = "\n".join(json.dumps(e, ensure_ascii=False) for e in evidence).encode("utf-8")
@@ -144,12 +144,12 @@ def fetch_rdap(ips):
             "source_url": "https://rdap.org/ip/{ip}", "http_method": "GET",
             "tool": "experiments/exp_whois_mechanism.py", "tool_git_commit": store.git_commit(),
             "n_ips": new, "raw_file": str(raw_path.relative_to(store.BASE_DIR)), "sha256_raw": sha})
-        print(f"  RDAP: {new} neu geholt, Beweisstück {raw_path.name} sha256={sha[:16]}…")
+        print(f"  RDAP: {new} newly fetched, exhibit {raw_path.name} sha256={sha[:16]}…")
     return cache
 
 
 def web_api_country(ip):
-    """Länder der Web-APIs für eine IP aus dem Observations-Cache (source -> country)."""
+    """Countries of the web APIs for an IP from the observations cache (source -> country)."""
     out = {}
     with open(store.CACHE_DIR / "observations.csv", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
@@ -161,11 +161,11 @@ def web_api_country(ip):
 
 def main():
     co = co_failure_set()
-    print(f"Co-Failure-Set (DB-IP~IP2 <{AGREE_KM}km einig, beide >{WRONG_KM}km von GT): {len(co)} IPs")
+    print(f"Co-failure set (DB-IP~IP2 <{AGREE_KM}km in agreement, both >{WRONG_KM}km from GT): {len(co)} IPs")
     cache = fetch_rdap([c["ip"] for c in co])
 
     confirmed = diff_anchor = web_same = web_total = 0
-    print(f"\n{'IP':16s} {'GT':3s} {'DB':3s} {'RDAP':4s} {'Org':22s} Mechanismus")
+    print(f"\n{'IP':16s} {'GT':3s} {'DB':3s} {'RDAP':4s} {'Org':22s} Mechanism")
     print("-" * 78)
     for c in co:
         body = (cache.get(c["ip"]) or {}).get("body")
@@ -180,18 +180,18 @@ def main():
             web_total += 1
             if wc == c["db_country"]:
                 web_same += 1
-        tag = "WHOIS bestätigt" if ok else ("DB≠RDAP" if rc else "RDAP fehlt")
+        tag = "WHOIS confirmed" if ok else ("DB≠RDAP" if rc else "RDAP missing")
         print(f"{c['ip']:16s} {c['anchor_country']:3s} {c['db_country']:3s} "
               f"{str(rc):4s} {str(org)[:22]:22s} {tag}")
 
     n = len(co)
     print("-" * 78)
-    print(f"\nMechanismus-Test (n={n} Common-Mode-IPs):")
-    print(f"  RDAP-Land ≠ Anchor-Land:                 {diff_anchor}/{n} ({100*diff_anchor/n:.0f}%)")
-    print(f"  DB-Land == RDAP-Land UND ≠ Anchor-Land:  {confirmed}/{n} ({100*confirmed/n:.0f}%)  ← WHOIS-Mechanismus")
+    print(f"\nMechanism test (n={n} common-mode IPs):")
+    print(f"  RDAP country ≠ anchor country:                 {diff_anchor}/{n} ({100*diff_anchor/n:.0f}%)")
+    print(f"  DB country == RDAP country AND ≠ anchor country:  {confirmed}/{n} ({100*confirmed/n:.0f}%)  ← WHOIS mechanism")
     if web_total:
-        print(f"\nWeb-APIs auf denselben IPs: {web_same}/{web_total} Treffer im SELBEN (falschen) DB-Land")
-        print(f"  → {'überwiegend dieselbe WHOIS-Falle' if web_same/web_total>0.5 else 'überwiegend abweichend = eigene Linie'}")
+        print(f"\nWeb APIs on the same IPs: {web_same}/{web_total} hits in the SAME (wrong) DB country")
+        print(f"  → {'predominantly the same WHOIS trap' if web_same/web_total>0.5 else 'predominantly deviating = own line'}")
 
 
 if __name__ == "__main__":

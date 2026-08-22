@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Sensitivität der Linien-Definition: reallyfreegeoip in der MaxMind-Linie?
+"""Sensitivity of the line definition: reallyfreegeoip inside the MaxMind line?
 
-Hintergrund (§3.2.4): reallyfreegeoip.org folgt der MaxMind-Abstammung mit
-abweichendem Datenstand (48 % identisch, 17 % > 100 km divergent). Dieses
-Skript prüft, ob der volle Linien-Kollaps die Headline-Ergebnisse verzerrt:
+Background: reallyfreegeoip.org follows the MaxMind lineage with a diverging
+data snapshot (48 % identical, 17 % > 100 km divergent). This script checks
+whether the full line collapse biases the headline results:
 
-  voll          : Status quo — rfg gehört zur MaxMind-GeoLite-Linie (k=3)
-  eigene_linie  : rfg zählt als eigene Linie (Familie nur maxmind+geojs, k=2)
-  bedingt       : rfg nur dort in der Familie, wo Koordinaten < 1 km an MaxMind
+  full          : status quo — rfg belongs to the MaxMind GeoLite line (k=3)
+  own_line      : rfg counts as its own line (family only maxmind+geojs, k=2)
+  conditional   : rfg in the family only where coordinates < 1 km from MaxMind
 
-Befund: Median/Tail praktisch invariant; Mittelwert-Differenzen sind reine
-Fern-Tail-Umsortierung bereits gescheiterter Anchors; ohne Kollaps kippt
-mindestens ein zuvor korrekter Anchor durch die volle Replikat-Stimme.
+Finding: median/tail practically invariant; mean differences are pure
+far-tail reshuffling of already-failed anchors; without the collapse at
+least one previously correct anchor tips through the full replicate vote.
 
-Ergebnis: Tabellen (stdout) + eval/out/line_sensitivity_rfg.csv
+Output: tables (stdout) + eval/out/line_sensitivity_rfg.csv
 """
 from __future__ import annotations
 
@@ -33,8 +33,8 @@ from experiments.exp_t6_defaults import (                # noqa: E402
 
 OUT = Path("eval/out")
 OUT.mkdir(parents=True, exist_ok=True)
-EPS = 10          # Headline-Konfiguration
-SPLIT_KM = 1.0    # Schwelle für den bedingten Kollaps
+EPS = 10          # headline configuration
+SPLIT_KM = 1.0    # threshold for the conditional collapse
 RFG = "reallyfreegeoip"
 MM = "maxmind_geolite2"
 
@@ -47,7 +47,7 @@ def errors(cases, loo):
 def summarize(errs):
     a = np.array(list(errs.values()))
     return dict(median_km=round(float(np.median(a)), 2),
-                mittel_km=round(float(a.mean()), 1),
+                mean_km=round(float(a.mean()), 1),
                 tail_pct=round(float(100 * (a > 100).mean()), 1))
 
 
@@ -56,7 +56,7 @@ def variant_own_line(cases):
     for c in cs:
         for p in c["provenance"]:
             if p["source"] == RFG:
-                p["lineage"] = "rfg_eigene_linie"
+                p["lineage"] = "rfg_own_line"
     return cs
 
 
@@ -68,14 +68,14 @@ def variant_conditional(cases):
         mm, rf = src.get(MM), src.get(RFG)
         if mm and rf and haversine_error((mm["lat"], mm["lon"]),
                                          (rf["lat"], rf["lon"])) >= SPLIT_KM:
-            rf["lineage"] = "rfg_eigene_linie"
+            rf["lineage"] = "rfg_own_line"
             n_split += 1
     return cs, n_split
 
 
 def main():
     cases = load_cases()
-    loo = loo_pseudo_radii(cases)   # Radien identisch für alle Varianten
+    loo = loo_pseudo_radii(cases)   # radii identical for all variants
 
     e_full = errors(cases, loo)
     e_own = errors(variant_own_line(cases), loo)
@@ -83,28 +83,28 @@ def main():
     e_cond = errors(cond_cases, loo)
 
     rows = []
-    for name, e in (("voll", e_full), ("eigene_linie", e_own),
-                    (f"bedingt_<{SPLIT_KM:g}km", e_cond)):
-        rows.append({"variante": name, **summarize(e)})
+    for name, e in (("full", e_full), ("own_line", e_own),
+                    (f"conditional_<{SPLIT_KM:g}km", e_cond)):
+        rows.append({"variant": name, **summarize(e)})
         print(f"{name:16s} {rows[-1]}")
 
-    # Fern-Tail-Charakter der Differenz voll vs. eigene Linie
+    # far-tail character of the difference full vs. own line
     d = {ip: e_own[ip] - e_full[ip] for ip in e_full}
     big = {ip: x for ip, x in d.items() if abs(x) > 10}
     flips = [(ip, e_full[ip], e_own[ip]) for ip in big
              if e_full[ip] < 100 < e_own[ip]]
-    print(f"\n|Delta|>10 km: {len(big)} von {len(d)} Anchors "
-          f"(Median |Delta| {np.median(np.abs(list(d.values()))):.3f} km)")
+    print(f"\n|delta|>10 km: {len(big)} of {len(d)} anchors "
+          f"(median |delta| {np.median(np.abs(list(d.values()))):.3f} km)")
     for ip, ef, eo in flips:
-        print(f"  KIPPT ohne Kollaps: {ip}  {ef:.1f} -> {eo:.1f} km")
-        rows.append({"variante": "kipp_anchor_ohne_kollaps", "anchor": ip,
-                     "err_voll_km": round(ef, 1), "err_eigene_km": round(eo, 1)})
-    rows.append({"variante": "delta_stat",
+        print(f"  FLIPS without collapse: {ip}  {ef:.1f} -> {eo:.1f} km")
+        rows.append({"variant": "flip_anchor_without_collapse", "anchor": ip,
+                     "err_full_km": round(ef, 1), "err_own_km": round(eo, 1)})
+    rows.append({"variant": "delta_stat",
                  "n_delta_gt10km": len(big),
                  "median_abs_delta_km": round(float(np.median(np.abs(list(d.values())))), 3)})
 
     pd.DataFrame(rows).to_csv(OUT / "line_sensitivity_rfg.csv", index=False)
-    print(f"\nCSV: {OUT}/line_sensitivity_rfg.csv  (bedingt: {n_split} IPs getrennt)")
+    print(f"\nCSV: {OUT}/line_sensitivity_rfg.csv  (conditional: {n_split} IPs split)")
 
 
 if __name__ == "__main__":

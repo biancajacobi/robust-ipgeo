@@ -9,21 +9,21 @@ import geoloc  # noqa: E402
 
 
 class PerSourceEstimates(DiscoverableTransform):
-    """IP -> eine Location-Entity je Quelle (Widerspruchs-Ansicht).
+    """IP -> one Location entity per source (disagreement view).
 
-    Zeigt die rohen Einzel-Schaetzungen aller Quellen nebeneinander im Graphen —
-    nuetzlich, um zu sehen, WORAUF der Konsens beruht und wie stark die Quellen
-    fuer diese IP auseinanderliegen. Linien-Zugehoerigkeit als Link-Label.
+    Shows the raw individual estimates of all sources side by side in the
+    graph — useful to see WHAT the consensus rests on and how far the sources
+    diverge for this IP. Line membership as the link label.
     """
 
     @classmethod
     def create_entities(cls, request, response):
         ip = request.Value.strip()
-        obs, failed = geoloc.collect(ip)
+        obs, failed, _extras = geoloc.collect(ip)
 
         if not obs:
             response.addUIMessage(
-                f"{ip}: keine Quelle lieferte eine gueltige Position", UIM_PARTIAL)
+                f"{ip}: no source delivered a valid position", UIM_PARTIAL)
             return
 
         w = geoloc.line_weights([o["lineage"] for o in obs])
@@ -33,9 +33,9 @@ class PerSourceEstimates(DiscoverableTransform):
             ent = response.addEntity("maltego.Location", f"{label} [{o['source']}]")
             ent.addProperty("latitude", "Latitude", "strict", f"{float(o['lat']):.6f}")
             ent.addProperty("longitude", "Longitude", "strict", f"{float(o['lon']):.6f}")
-            ent.addProperty("robustgeo.source", "Quelle", "loose", o["source"])
-            ent.addProperty("robustgeo.lineage", "Linie (lineage)", "loose", o["lineage"])
-            ent.addProperty("robustgeo.line_weight", "Linien-Gewicht", "loose", f"{wi:.2f}")
+            ent.addProperty("robustgeo.source", "Source", "loose", o["source"])
+            ent.addProperty("robustgeo.lineage", "Line (lineage)", "loose", o["lineage"])
+            ent.addProperty("robustgeo.line_weight", "Line weight", "loose", f"{wi:.2f}")
             if o.get("accuracy_radius") is not None:
                 ent.addProperty("robustgeo.accuracy_radius", "accuracy_radius (km)",
                                 "loose", str(o["accuracy_radius"]))
@@ -44,5 +44,5 @@ class PerSourceEstimates(DiscoverableTransform):
 
         if failed:
             response.addUIMessage(
-                f"{ip}: ohne Antwort: " + ", ".join(f"{s} ({st})" for s, st in failed),
+                f"{ip}: no response: " + ", ".join(f"{s} ({st})" for s, st in failed),
                 UIM_PARTIAL)

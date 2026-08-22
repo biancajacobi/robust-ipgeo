@@ -1,0 +1,11 @@
+population,config,median_km,mean_km,tail_pct,n,rfg_coverage_pct,bss_raw,bss_platt_oof,ece_raw,ece_platt_oof,missrate,ci_lo,ci_hi,B,point
+giga,frozen,121.63037041855546,220.47994383669956,54.913023037141514,2127,88.8,,,,,,,,,
+giga,fresh,121.33915578859363,220.2812286940365,54.58392101551481,2127,88.8,,,,,,,,,
+giga,S_transfer,,,,2127,,-0.618,0.07,0.404,0.028,0.549,,,,
+giga,S_transfer_platt_group_asn,,,,2127,,,0.047,,0.056,,,,,
+giga,S_transfer_platt_group_asn_ci,,,,2127,,,0.047,,,,-0.091,0.161,2000.0,
+giga,S_transfer_platt_group_school,,,,2127,,,0.056,,0.031,,,,,
+giga,S_transfer_platt_group_school_ci,,,,2127,,,0.056,,,,0.03,0.105,2000.0,
+giga,asn_ci_median_km,,,,2127,,,,,,,31.675,259.914,,121.63
+giga,asn_ci_tail_pct,,,,2127,,,,,,,39.231,69.809,,54.913
+giga,asn_ci_delta_median_frozen_minus_fresh_km,,,,2127,,,,,,,-11.886,6.41,,0.291

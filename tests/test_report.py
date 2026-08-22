@@ -1,4 +1,4 @@
-"""Tests für die Auswertung: Kennzahlen, Coverage, Tabellen, Plots."""
+"""Tests for the reporting layer: summary stats, coverage, tables, plots."""
 
 import sys
 from pathlib import Path
@@ -35,7 +35,7 @@ def test_summarize_results_sorted_by_median():
         "error_km": [1.0, 2.0, 100.0, 200.0],
     })
     out = report.summarize_results(df, coverage_km=(50,))
-    assert list(out.index) == ["a", "b"]          # nach Median sortiert
+    assert list(out.index) == ["a", "b"]          # sorted by median
     assert out.loc["a", "cov@50km"] == 1.0
     assert out.loc["b", "cov@50km"] == 0.0
 

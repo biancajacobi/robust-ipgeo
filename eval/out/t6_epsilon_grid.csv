@@ -1,9 +1,0 @@
-form,eps_km,mean_km,median_km,tail_rate_pct,hart_median_km,headline
-lin,10,183.4,4.1,12.0,371.0,True
-lin,30,183.6,4.1,12.3,371.0,False
-lin,50,183.5,4.2,12.3,371.0,False
-lin,100,183.5,4.2,12.4,371.0,False
-quad,10,172.5,4.1,11.8,371.0,False
-quad,30,183.5,4.1,12.3,371.0,False
-quad,50,183.5,4.2,12.5,371.0,False
-quad,100,183.5,4.2,12.4,371.0,False

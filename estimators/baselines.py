@@ -1,16 +1,16 @@
-"""Etablierte robuste Schätzer als Vergleichs-Baselines.
+"""Established robust estimators as comparison baselines.
 
-Alle Schätzer arbeiten auf einer kleinen Wertereihe von Standort-Schätzungen
-einer IP und liefern einen einzelnen Referenzpunkt zurück.
+All estimators operate on a small value series of location estimates for one
+IP and return a single reference point.
 
-Schnittstelle (einheitlich für alle Schätzer im Projekt):
+Interface (uniform for all estimators in the project):
     estimate(points: np.ndarray[shape=(n, 2)]) -> np.ndarray[shape=(2,)]
-    points-Spalten = (lat, lon) in Dezimalgrad, Rückgabe = (lat, lon).
+    points columns = (lat, lon) in decimal degrees, return = (lat, lon).
 
-Hinweis: Komponentenweiser Median/getrimmtes Mittel auf lat/lon ist nahe dem
-Antimeridian/an den Polen verzerrt (0,001). Für die hier verwendeten (europäischen)
-RIPE-Atlas-Anchors unkritisch; der geometrische Median ist der sauberere
-2D-Schätzer und dient als Hauptbaseline.
+Note: component-wise median/trimmed mean on lat/lon is biased near the
+antimeridian/at the poles. Uncritical for the (European) RIPE Atlas anchors
+used here; the geometric median is the cleaner 2D estimator and serves as the
+main baseline.
 """
 
 from __future__ import annotations
@@ -26,27 +26,29 @@ def _as_points(points) -> np.ndarray:
 
 
 def centroid(points) -> np.ndarray:
-    """Naiver Mittelwert (komponentenweises Mittel).
+    """Naive mean (component-wise average).
 
-    Breakdown-Point 0 % — die *nicht*-robuste Referenz, die die robusten
-    Verfahren schlagen sollen (vgl. FF1 / E1).
+    Breakdown point 0 % — the *non*-robust reference the robust methods are
+    supposed to beat (cf. RQ1 / E1).
     """
     return _as_points(points).mean(axis=0)
 
 
 def coordinate_median(points) -> np.ndarray:
-    """Komponentenweiser Median über lat und lon (je Achse separat).
+    """Component-wise median over lat and lon (each axis separately).
 
-    Breakdown-Point 50 % je Komponente, aber — anders als der geometrische
-    Median — NICHT affin-äquivariant und ohne dessen 2D-Optimalitäts-
-    eigenschaften. Dient als naive 2D-Robustifizierung.
+    Breakdown point 50 % per component, but — unlike the geometric
+    median — not rotation-equivariant (the geometric median is
+    similarity-equivariant; neither is affine-equivariant) and without its 2D
+    optimality properties (cf. methodology chapter). Serves as a naive 2D
+    robustification.
     """
     pts = _as_points(points)
     return np.median(pts, axis=0)
 
 
 def trimmed_mean(points, proportion: float = 0.2) -> np.ndarray:
-    """Komponentenweise getrimmtes Mittel; ``proportion`` je Seite gestutzt."""
+    """Component-wise trimmed mean; ``proportion`` trimmed per side."""
     if not 0.0 <= proportion < 0.5:
         raise ValueError("proportion muss in [0, 0.5) liegen")
     pts = _as_points(points)
@@ -60,23 +62,27 @@ def trimmed_mean(points, proportion: float = 0.2) -> np.ndarray:
 
 
 def geometric_median(points, eps: float = 1e-6, max_iter: int = 500) -> np.ndarray:
-    """Geometrischer Median (L1-Median) via Weiszfeld-Iteration.
+    """Geometric median (L1 median) via Weiszfeld iteration.
 
-    Fällt die Iterierte exakt mit einem Datenpunkt zusammen (Weiszfeld-Singularität),
-    bricht die Iteration ab und gibt diesen Punkt zurück — ein pragmatischer
-    Early-Return, NICHT die vollständige Vardi-&-Zhang-Korrektur. Die echte
-    singularitätsfreie Behandlung leistet ``smoothed_geometric_median`` (RFA nach
-    Pillutla et al.), die im Projekt als robuste Hauptvariante dient.
-    Breakdown-Point ~50 %.
+    If the iterate coincides exactly with a data point (Weiszfeld singularity),
+    the iteration stops and returns that point — a pragmatic early return,
+    NOT the full Vardi & Zhang correction. CAUTION
+    (review 2026-08-18): if the collision already hits the START iterate, the
+    return value is the arithmetic MEAN, not the geometric median —
+    constructibly arbitrarily wrong (e.g. [[0,0]*3, [4,0], [16,0]] -> (4,0)
+    instead of (0,0)); latent on the real anchor data (0/1077 cases). The true
+    singularity-free treatment is provided by ``smoothed_geometric_median``
+    (RFA after Pillutla et al.), which serves as the robust main variant in
+    the project. Breakdown point ~50 %.
     """
     pts = _as_points(points)
-    y = pts.mean(axis=0)  # Startwert: Mittelwert
+    y = pts.mean(axis=0)  # starting value: mean
 
     for _ in range(max_iter):
         d = np.linalg.norm(pts - y, axis=1)
         nonzero = d > eps
 
-        if not np.all(nonzero):  # y fällt mit einem Datenpunkt zusammen
+        if not np.all(nonzero):  # y coincides with a data point
             return y
 
         w = 1.0 / d[nonzero]
@@ -91,16 +97,17 @@ def geometric_median(points, eps: float = 1e-6, max_iter: int = 500) -> np.ndarr
 
 def smoothed_geometric_median(points, nu: float = 1e-3, eps: float = 1e-9,
                               max_iter: int = 500) -> np.ndarray:
-    """Geglätteter geometrischer Median (Weiszfeld mit beschränkten Gewichten).
+    """Smoothed geometric median (Weiszfeld with bounded weights).
 
-    Nach Pillutla et al., „Robust Aggregation for Federated Learning" (RFA):
-    das Gewicht ``w_i = 1 / max(nu, ||x_i - y||)`` beschränkt den Einfluss von
-    Punkten nahe ``y`` und vermeidet die Weiszfeld-Singularität ohne Sonderfall
-    — numerisch stabiler als der reine Schritt, gleicher ~50 % Breakdown-Point.
-    ``nu`` ist ein kleines Glättungsmaß in Grad (Default ~0,1 km äquivalent).
+    After Pillutla et al., "Robust Aggregation for Federated Learning" (RFA):
+    the weight ``w_i = 1 / max(nu, ||x_i - y||)`` bounds the influence of
+    points near ``y`` and avoids the Weiszfeld singularity without a special
+    case — numerically more stable than the pure step, same ~50 % breakdown
+    point. ``nu`` is a small smoothing measure in degrees (default ~0.1 km
+    equivalent).
     """
     pts = _as_points(points)
-    y = pts.mean(axis=0)  # Startwert: Mittelwert
+    y = pts.mean(axis=0)  # starting value: mean
     for _ in range(max_iter):
         d = np.linalg.norm(pts - y, axis=1)
         w = 1.0 / np.maximum(nu, d)
@@ -113,12 +120,12 @@ def smoothed_geometric_median(points, nu: float = 1e-3, eps: float = 1e-9,
 
 def weighted_geometric_median(points, weights=None, nu: float = 1e-3,
                               eps: float = 1e-9, max_iter: int = 500) -> np.ndarray:
-    """Gewichteter, geglätteter geometrischer Median: minimiert ``Σ αᵢ·‖v − xᵢ‖``.
+    """Weighted, smoothed geometric median: minimizes ``Σ αᵢ·‖v − xᵢ‖``.
 
-    Die gewichtete RFA-Variante (Pillutla et al.). ``weights`` = αᵢ; typischer
-    Einsatz: **Linien-Gewichte** (jede Datenherkunft/lineage bekommt Gesamtgewicht
-    1, gleichmäßig auf ihre Mitglieder verteilt), damit korrelierte Quellen die
-    Schätzung nicht dominieren. ``weights=None`` -> uniform (== smoothed GM).
+    The weighted RFA variant (Pillutla et al.). ``weights`` = αᵢ; typical
+    use: **line weights** (each data provenance/lineage gets total weight
+    1, distributed evenly over its members), so that correlated sources do not
+    dominate the estimate. ``weights=None`` -> uniform (== smoothed GM).
     """
     pts = _as_points(points)
     n = pts.shape[0]
@@ -128,7 +135,7 @@ def weighted_geometric_median(points, weights=None, nu: float = 1e-3,
         a = np.asarray(weights, dtype=float)
         if a.shape != (n,):
             raise ValueError(f"weights muss Form ({n},) haben, erhalten {a.shape}")
-    y = (pts * a[:, None]).sum(axis=0) / a.sum()  # gewichteter Mittelwert als Start
+    y = (pts * a[:, None]).sum(axis=0) / a.sum()  # weighted mean as the start
     for _ in range(max_iter):
         d = np.linalg.norm(pts - y, axis=1)
         w = a / np.maximum(nu, d)
@@ -139,10 +146,10 @@ def weighted_geometric_median(points, weights=None, nu: float = 1e-3,
     return y
 
 
-# Registry für Experimente (Name -> Schätzfunktion). Reihenfolge =
-# naiv -> robust, damit Tabellen/Plots gut lesbar sind.
+# Registry for experiments (name -> estimator function). Order =
+# naive -> robust, so tables/plots read well.
 BASELINES = {
-    "centroid": centroid,                               # naiv, Breakdown 0 %
+    "centroid": centroid,                               # naive, breakdown 0 %
     "median": coordinate_median,
     "trimmed_mean": trimmed_mean,
     "geometric_median": geometric_median,

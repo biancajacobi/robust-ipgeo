@@ -1,9 +1,9 @@
-"""Determinismus-/Reproduzierbarkeits-Tests.
+"""Determinism / reproducibility tests (RQ4).
 
-Belegt die hier dokumentierte Eigenschaft, dass die Auswertung gegen
-eingefrorene Eingaben identische Ergebnisse liefert: die Aggregations-Schätzer
-sind deterministisch, und stochastische Schritte (Bootstrap, Kontaminations-
-Auswahl, out-of-fold-Partitionierung) sind über feste Zufallssaaten reproduzierbar.
+Substantiates the property claimed in the accompanying paper that the
+evaluation yields identical results against frozen inputs: the aggregation
+estimators are deterministic, and stochastic steps (bootstrap, contamination
+selection, out-of-fold partitioning) are reproducible via fixed random seeds.
 """
 
 import sys
@@ -20,7 +20,7 @@ from estimators.baselines import (
 )
 from estimators import braetz
 
-# vier dichte Punkte + ein Ausreißer (lat, lon)
+# four dense points + one outlier (lat, lon)
 POINTS = np.array([
     [52.50, 13.40], [52.51, 13.41], [52.52, 13.39], [52.49, 13.40], [10.0, 80.0],
 ])
@@ -28,17 +28,17 @@ WEIGHTS = np.array([1 / 3, 1 / 3, 1 / 3, 1.0, 1.0])
 
 
 def test_estimators_are_deterministic():
-    """Zweimal derselbe Input -> bit-identischer Schätzwert (kein versteckter Zustand)."""
+    """Same input twice -> bit-identical estimate (no hidden state)."""
     for fn in (geometric_median, smoothed_geometric_median, braetz.estimate):
         a, b = fn(POINTS), fn(POINTS)
-        assert np.array_equal(a, b), f"{fn.__name__} nicht deterministisch"
+        assert np.array_equal(a, b), f"{fn.__name__} not deterministic"
     a = weighted_geometric_median(POINTS, WEIGHTS)
     b = weighted_geometric_median(POINTS, WEIGHTS)
     assert np.array_equal(a, b)
 
 
 def test_seeded_bootstrap_is_reproducible():
-    """Gleicher Seed -> identische Bootstrap-Ziehung; verschiedener Seed -> verschieden."""
+    """Same seed -> identical bootstrap draw; different seed -> different."""
     def draw(seed):
         rng = np.random.default_rng(seed)
         return rng.integers(0, 100, 50)
@@ -48,7 +48,7 @@ def test_seeded_bootstrap_is_reproducible():
 
 
 def test_seeded_folds_are_reproducible():
-    """Out-of-fold-Partitionierung ist über den Seed reproduzierbar."""
+    """Out-of-fold partitioning is reproducible via the seed."""
     from experiments.exp_support_concentration import folds
 
     y = np.array([0, 1] * 50)

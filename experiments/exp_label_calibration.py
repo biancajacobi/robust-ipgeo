@@ -1,26 +1,26 @@
-"""Kalibrierungsanalyse des 2D-Konfidenzlabels (Streuung x Hub-Flag, FF4).
+"""Calibration analysis of the 2D predecessor label (spread x hub flag, RQ4).
 
-Kernfrage: Ist das Label ein *kalibrierter* Risiko-Indikator für Aggregations-
-Misses -- oder „nur" ein diskriminierender (aber unkalibrierter) Triage-Flag?
+Core question: is the label a *calibrated* risk indicator for aggregation
+misses -- or "only" a discriminating (but uncalibrated) triage flag?
 
-Ereignis:  Y = 1{Haversine-Fehler > tau km}, tau = 100 (Recall-Definition),
-           tau = 25 als Sensitivitaet.
-Zwei Sichten, beide OUT-OF-FOLD (10-fach stratifiziert, seed=0 -> kein In-Sample-Zirkel):
+Event:  Y = 1{haversine error > tau km}, tau = 100 (recall definition),
+        tau = 25 as sensitivity.
+Two views, both OUT-OF-FOLD (10-fold stratified, seed=0 -> no in-sample circularity):
 
-  (A) Quadranten-Sicht (label-treu): Forecast = Tail-Rate des Quadranten.
-      Misst Diskriminierung (Brier Skill Score, Resolution). Die Reliability ist
-      hier ~0 *per Konstruktion* (Forecast = Gruppenmittel) -> kein echter
-      Kalibrationstest, aber die Risikostaffelung + Wilson-CIs sind aussagekraeftig.
+  (A) Quadrant view (label-faithful): forecast = tail rate of the quadrant.
+      Measures discrimination (Brier skill score, resolution). Reliability is
+      ~0 here *by construction* (forecast = group mean) -> not a genuine
+      calibration test, but the risk stratification + Wilson CIs are informative.
 
-  (B) Logistisches Surrogat (echter Kalibrationstest): kontinuierlicher Forecast
-      p_hat aus den zwei Label-Achsen [log(1+Streuung), Hub] via IRLS-Logit.
-      Dieser Forecast KANN miskalibriert sein -> das Reliability-Diagramm ist
-      informativ. Surrogat der Achsen, nicht des diskreten Labels selbst.
+  (B) Logistic surrogate (genuine calibration test): continuous forecast
+      p_hat from the two label axes [log(1+spread), hub] via IRLS logit.
+      This forecast CAN be miscalibrated -> the reliability diagram is
+      informative. Surrogate of the axes, not of the discrete label itself.
 
-Liest eval/out/t6_confidence_matrix.csv. Schreibt nach eval/out/:
+Reads eval/out/t6_confidence_matrix.csv. Writes to eval/out/:
   label_calibration_quadrants_tau{100,25}.csv
   label_calibration_bins_tau{100,25}.csv
-  label_calibration.png  (Reliability-Diagramm, tau=100)
+  label_calibration.png  (reliability diagram, tau=100)
 
     python experiments/exp_label_calibration.py
 """
@@ -43,10 +43,10 @@ K = 10
 
 
 # --------------------------------------------------------------------------- #
-# Hilfsfunktionen
+# helper functions
 # --------------------------------------------------------------------------- #
 def stratified_folds(y: np.ndarray, k: int = K, seed: int = SEED) -> np.ndarray:
-    """Fold-Index je Beobachtung; jede Klasse wird gleichmaessig auf k Folds verteilt."""
+    """Fold index per observation; each class is distributed evenly over k folds."""
     rng = np.random.default_rng(seed)
     folds = np.empty(len(y), dtype=int)
     for cls in (0, 1):
@@ -57,7 +57,7 @@ def stratified_folds(y: np.ndarray, k: int = K, seed: int = SEED) -> np.ndarray:
 
 
 def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    """Wilson-Score-Konfidenzintervall fuer einen Anteil k/n."""
+    """Wilson score confidence interval for a proportion k/n."""
     if n == 0:
         return (np.nan, np.nan)
     p = k / n
@@ -68,9 +68,9 @@ def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
 
 
 def murphy(forecast: np.ndarray, y: np.ndarray) -> dict:
-    """Brier-Score + Skill + ECE + Murphy-Zerlegung fuer stueckweise-konstante Forecasts.
+    """Brier score + skill + ECE + Murphy decomposition for piecewise-constant forecasts.
 
-    Brier = Reliability - Resolution + Uncertainty (Gruppierung nach distinktem Forecast-Wert).
+    Brier = reliability - resolution + uncertainty (grouped by distinct forecast value).
     """
     base = float(y.mean())
     brier = float(np.mean((forecast - y) ** 2))
@@ -89,7 +89,7 @@ def murphy(forecast: np.ndarray, y: np.ndarray) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# (A) Quadranten-Sicht
+# (A) quadrant view
 # --------------------------------------------------------------------------- #
 def quadrant_calibration(df: pd.DataFrame, tau: float) -> tuple[dict, pd.DataFrame]:
     y = (df.est_error_km.values > tau).astype(int)
@@ -109,8 +109,8 @@ def quadrant_calibration(df: pd.DataFrame, tau: float) -> tuple[dict, pd.DataFra
 
     metrics = murphy(p_hat, y)
     rows = []
-    names = {(True, False): "belastbar", (True, True): "Sicherheits-Illusion",
-             (False, False): "ehrliche Unsicherheit", (False, True): "Inkonsistenz"}
+    names = {(True, False): "reliable", (True, True): "safety illusion",
+             (False, False): "honest uncertainty", (False, True): "inconsistency"}
     for q in [(True, False), (True, True), (False, False), (False, True)]:
         m = np.array([qi == q for qi in quad])
         n = int(m.sum())
@@ -123,7 +123,7 @@ def quadrant_calibration(df: pd.DataFrame, tau: float) -> tuple[dict, pd.DataFra
 
 
 # --------------------------------------------------------------------------- #
-# (B) Logistisches Surrogat (IRLS, dependency-frei)
+# (B) logistic surrogate (IRLS, dependency-free)
 # --------------------------------------------------------------------------- #
 def _logreg_fit(X: np.ndarray, y: np.ndarray, iters: int = 100, ridge: float = 1e-6) -> np.ndarray:
     w = np.zeros(X.shape[1])
@@ -162,7 +162,7 @@ def logistic_calibration(df: pd.DataFrame, tau: float, n_bins: int = 5
     brier = float(np.mean((p_hat - y) ** 2))
     bss = 1 - brier / (base * (1 - base))
 
-    # Quantil-Bins (robust bei seltenem Ereignis); ECE gewichtet
+    # quantile bins (robust for a rare event); ECE weighted
     edges = np.unique(np.quantile(p_hat, np.linspace(0, 1, n_bins + 1)))
     bin_idx = np.clip(np.digitize(p_hat, edges[1:-1]), 0, len(edges) - 2)
     rows, ece = [], 0.0
@@ -181,7 +181,7 @@ def logistic_calibration(df: pd.DataFrame, tau: float, n_bins: int = 5
 
 
 # --------------------------------------------------------------------------- #
-# Plot
+# plot
 # --------------------------------------------------------------------------- #
 def plot_reliability(bins: pd.DataFrame, quad: pd.DataFrame, tau: float) -> Path:
     plt = report._plt()
@@ -189,21 +189,21 @@ def plot_reliability(bins: pd.DataFrame, quad: pd.DataFrame, tau: float) -> Path
     fig, ax = plt.subplots(figsize=(7, 4.5))
     hi = max(bins.ci_hi.max(), quad.ci_hi.max(), bins.forecast.max()) * 1.05
 
-    ax.plot([0, hi], [0, hi], "k--", alpha=0.5, label="perfekt kalibriert")
+    ax.plot([0, hi], [0, hi], "k--", alpha=0.5, label="perfectly calibrated")
     ax.errorbar(bins.forecast, bins.observed,
                 yerr=[bins.observed - bins.ci_lo, bins.ci_hi - bins.observed],
-                fmt="o-", capsize=3, label="logistisches Surrogat (Bins)")
+                fmt="o-", capsize=3, label="logistic surrogate (bins)")
     ax.scatter(quad.forecast, quad.observed, s=20 + quad.n / 3.0, marker="s",
-               color="tab:red", zorder=5, label="Quadranten (label-treu)")
+               color="tab:red", zorder=5, label="quadrants (label-faithful)")
     for _, r in quad.iterrows():
         ax.annotate(r["quadrant"], (r.forecast, r.observed), fontsize=7,
                     xytext=(4, 4), textcoords="offset points")
 
     ax.set_xlim(0, hi)
     ax.set_ylim(0, hi)
-    ax.set_xlabel(f"Vorhergesagte Miss-Wahrscheinlichkeit (Fehler > {tau:.0f} km)")
-    ax.set_ylabel("Beobachtete Miss-Rate (out-of-fold)")
-    ax.set_title("Reliability-Diagramm: 2D-Konfidenzlabel")
+    ax.set_xlabel(f"Predicted miss probability (error > {tau:.0f} km)")
+    ax.set_ylabel("Observed miss rate (out-of-fold)")
+    ax.set_title("Reliability diagram: 2D predecessor label")
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=8)
     fig.tight_layout()
@@ -215,9 +215,10 @@ def plot_reliability(bins: pd.DataFrame, quad: pd.DataFrame, tau: float) -> Path
 
 # --------------------------------------------------------------------------- #
 def run() -> None:
+    # NOTE: artifact/function name kept for stability; 'confidence' is the legacy name of the 2D predecessor label (paper terminology: predecessor label / risk signal).
     csv = OUT / "t6_confidence_matrix.csv"
     if not csv.exists():
-        print(f"Fehlt: {csv} — erst: python experiments/exp_t6_defaults.py")
+        print(f"Missing: {csv} — first run: python experiments/exp_t6_defaults.py")
         return
     df = pd.read_csv(csv)
 
@@ -225,23 +226,23 @@ def run() -> None:
         qm, qtab = quadrant_calibration(df, tau)
         lm, ltab, _ = logistic_calibration(df, tau)
         print("\n" + "=" * 74)
-        print(f"KALIBRIERUNG Konfidenzlabel  |  tau={tau} km  |  Basisrate={qm['base']:.3f}  (n={len(df)})")
+        print(f"CALIBRATION predecessor label  |  tau={tau} km  |  base rate={qm['base']:.3f}  (n={len(df)})")
         print("=" * 74)
-        print(f"(A) Quadranten-Sicht (Diskriminierung): "
+        print(f"(A) Quadrant view (discrimination): "
               f"Brier={qm['brier']:.4f}  BSS={qm['bss']:+.3f}  "
-              f"Resolution={qm['resolution']:.4f}  Reliability={qm['reliability']:.4f}")
+              f"resolution={qm['resolution']:.4f}  reliability={qm['reliability']:.4f}")
         print(qtab.round(3).to_string(index=False))
-        print(f"\n(B) Logistisches Surrogat (Kalibrierung): "
+        print(f"\n(B) Logistic surrogate (calibration): "
               f"Brier={lm['brier']:.4f}  BSS={lm['bss']:+.3f}  ECE={lm['ece']:.3f}")
         print(ltab.round(3).to_string(index=False))
         qtab.to_csv(OUT / f"label_calibration_quadrants_tau{tau}.csv", index=False)
         ltab.to_csv(OUT / f"label_calibration_bins_tau{tau}.csv", index=False)
 
-    # Reliability-Diagramm fuer die Headline-Schwelle tau=100
+    # reliability diagram for the headline threshold tau=100
     qm100, qtab100 = quadrant_calibration(df, 100)
     lm100, ltab100, _ = logistic_calibration(df, 100)
     path = plot_reliability(ltab100, qtab100, 100)
-    print(f"\nAbbildung: {path}")
+    print(f"\nFigure: {path}")
 
 
 if __name__ == "__main__":

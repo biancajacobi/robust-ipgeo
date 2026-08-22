@@ -1,16 +1,16 @@
-"""E3 / T3 — Stichprobengröße n: Quellenzahl senken (FF3).
+"""E3 / T3 — Sample size n: reducing the number of sources (RQ3).
 
-Sub-Sampling über die bestehenden Beobachtungen: je Anchor zufällig n ∈ {3,5,7}
-Quellen ziehen, Schätzer rechnen, Distanzfehler messen. Bootstrap über die zufällige
-Auswahl (B Wiederholungen) → IQR-Bänder. Referenz „all" = alle verfügbaren Quellen.
+Sub-sampling over the existing observations: per anchor, randomly draw n ∈ {3,5,7}
+sources, compute estimators, measure distance errors. Bootstrapping over the random
+selection (B repetitions) → IQR bands. Reference "all" = all available sources.
 
-Methodischer Zweck: Brätz' klassen-/dichtebasiertes Verfahren arbeitet auf n≈15 und
-unterstellt Normalverteilung — hier wird gezeigt, ob die robusten Schätzer auch bei
-n=3 noch brauchbare Referenzpunkte liefern (eine konkrete Lücke der Brätz-Annahme).
-Hinweis: trimmed_mean (20 %) trimmt erst ab n≥5 etwas; bei n=3 == Mittel.
+Methodological purpose: Braetz's class-/density-based method works on n≈15 and
+assumes normality — here we show whether the robust estimators still deliver
+usable reference points at n=3 (a concrete gap of the Braetz assumption).
+Note: trimmed_mean (20%) only trims anything from n≥5; at n=3 == mean.
 
-Aufruf:  python experiments/exp_samplesize.py
-Ergebnis: eval/out/e3_samplesize.{csv,png}
+Invocation:  python experiments/exp_samplesize.py
+Result: eval/out/e3_samplesize.{csv,png}
 """
 
 from __future__ import annotations
@@ -36,14 +36,14 @@ SEED = 20260604
 OUT = Path("eval/out"); OUT.mkdir(parents=True, exist_ok=True)
 
 ESTS = ["centroid", "median", "trimmed_mean", "geometric_median", "geom_median_perline"]
-LABEL = {"centroid": "naiver Mittelwert", "median": "Koord.-Median", "trimmed_mean": "getr. Mittel",
-         "geometric_median": "geom. Median", "geom_median_perline": "geom. Median (Linien-gew.)"}
+LABEL = {"centroid": "naive mean", "median": "coord. median", "trimmed_mean": "trimmed mean",
+         "geometric_median": "geometric median", "geom_median_perline": "geometric median (line-weighted)"}
 COLOR = {"centroid": "#d62728", "median": "#2ca02c", "trimmed_mean": "#8c564b",
          "geometric_median": "#1f77b4", "geom_median_perline": "#9467bd"}
 
 
 def make_plot(rows, n_eligible):
-    """Forestplot: y = (n, Schätzer) gruppiert, x = Median-Fehler mit IQR-Whiskern."""
+    """Forest plot: y = (n, estimator) grouped, x = median error with IQR whiskers."""
     fig, ax = plt.subplots(figsize=(8, 6))
     ypos, ylab, y = [], [], 0
     for n in N_VALUES:
@@ -55,9 +55,9 @@ def make_plot(rows, n_eligible):
         y += 0.6
     ax.set_yticks(ypos, ylab, fontsize=8)
     ax.invert_yaxis()
-    ax.set_xlabel("Median-Distanzfehler / km  (Whisker = IQR über Bootstrap)")
-    ax.set_title(f"E3 — Stichprobengröße: Fehler bei n ∈ {N_VALUES}  "
-                 f"(n_Fälle≈{n_eligible[N_VALUES[0]]}, B={N_BOOT})")
+    ax.set_xlabel("median distance error / km  (whiskers = IQR over bootstrap)")
+    ax.set_title(f"E3 — sample size: error at n ∈ {N_VALUES}  "
+                 f"(n_cases≈{n_eligible[N_VALUES[0]]}, B={N_BOOT})")
     ax.grid(True, axis="x", alpha=0.25)
     fig.tight_layout(); fig.savefig(OUT / "e3_samplesize.png", dpi=150); plt.close(fig)
 
@@ -84,10 +84,10 @@ def estimate_all(pts, weights):
 
 def run():
     cases = load_cases()
-    # je Fall: Punkte, Linien (für Linien-Gewicht der Teilstichprobe), Truth
+    # per case: points, lines (for line weighting of the subsample), truth
     prepared = [(c["points"], [p["lineage"] for p in c["provenance"]], c["truth"]) for c in cases]
     rng = np.random.default_rng(SEED)
-    print(f"E3 — {len(cases)} Fälle, n∈{N_VALUES}, B={N_BOOT}")
+    print(f"E3 — {len(cases)} cases, n∈{N_VALUES}, B={N_BOOT}")
 
     results = {e: {n: [] for n in N_VALUES} for e in ESTS}
     n_eligible = {}
@@ -104,7 +104,7 @@ def run():
                     per_est[e].append(haversine_error((est[0], est[1]), truth))
             for e in ESTS:
                 results[e][n].append(float(np.median(per_est[e])))
-        print(f"  n={n} fertig ({len(elig)} geeignete Fälle)")
+        print(f"  n={n} done ({len(elig)} eligible cases)")
 
     rows = {}
     with open(OUT / "e3_samplesize.csv", "w", newline="") as fh:
@@ -118,21 +118,21 @@ def run():
 
     make_plot(rows, n_eligible)
 
-    print("\nMedian-Fehler km je n:")
+    print("\nMedian error km per n:")
     for n in N_VALUES:
         print(f"  n={n}: " + "  ".join(f"{e.split('_')[0]}={rows[(e,n)][0]:.1f}" for e in ESTS))
-    print(f"\nTabelle: {OUT}/e3_samplesize.csv   Plot: {OUT}/e3_samplesize.png")
+    print(f"\nTable: {OUT}/e3_samplesize.csv   Plot: {OUT}/e3_samplesize.png")
 
 
 if __name__ == "__main__":
     import argparse
-    ap = argparse.ArgumentParser(description="E3 Stichprobengröße.")
+    ap = argparse.ArgumentParser(description="E3 sample size.")
     ap.add_argument("--replot", action="store_true",
-                    help="nur Plot aus e3_samplesize.csv neu rendern (kein Neu-Rechnen)")
+                    help="only re-render the plot from e3_samplesize.csv (no recomputation)")
     args = ap.parse_args()
     if args.replot:
         rows, n_eligible = load_results_csv()
         make_plot(rows, n_eligible)
-        print(f"Neu gerendert: {OUT}/e3_samplesize.png")
+        print(f"Re-rendered: {OUT}/e3_samplesize.png")
     else:
         run()

@@ -1,31 +1,33 @@
-"""Pro IP eine kleine, heterogene Wertereihe an Standort-Schätzungen einsammeln.
+"""Collect, per IP, a small heterogeneous value series of location estimates.
 
-Quellen: mehrere **freie** Geo-APIs (kein Lizenzschlüssel nötig). Sie widersprechen
-sich für dieselbe IP teils um tausende Kilometer — genau die Ausgangslage, die das
-Projekt untersucht. Offline-DBs (GeoLite2/DB-IP/IP2Location) sind hier bewusst nicht
-angebunden (Lizenz/Download); die Quellen-Registry ``SOURCES`` lässt sich aber leicht
-um mmdb-Adapter erweitern.
+Sources: six free geo web APIs (ipinfo needs a free token via IPINFO_TOKEN)
+plus three local LITE databases (GeoLite2/DB-IP/IP2Location; free licenses,
+download required). The sources contradict each other for the same IP,
+sometimes by thousands of kilometers — exactly the starting situation the
+project investigates. The source registry ``SOURCES`` can be extended with
+further adapters (mind the lineage assignment, see maltego/check_lineage.py).
 
-Reproduzierbarkeit + Provenance (leichtgewichtig):
-  data/cache/sources_raw.jsonl     append-only Cache (Arbeitskopie): 1 Zeile je
-                                   (Quelle, IP); verhindert doppelte API-Abrufe.
-  data/cache/raw/sources_<id>.json wortgetreues, UNVERÄNDERLICHES Beweisstück je
-                                   Lauf (die in diesem Lauf geholten Antworten) —
-                                   SHA-256-belegt im Ledger (wächst nicht nach).
-  data/cache/observations.csv      normalisierte Arbeitskopie (OBSERVATION_COLUMNS),
-                                   kumulative Sicht des gesamten Caches.
-  data/provenance.jsonl            1 Audit-Ledger-Eintrag je Lauf, in die Hash-Kette.
+Reproducibility + provenance (lightweight):
+  data/cache/sources_raw.jsonl     append-only cache (working copy): 1 line per
+                                   (source, IP); prevents duplicate API calls.
+  data/cache/raw/sources_<id>.json verbatim, IMMUTABLE evidence artifact per
+                                   run (the responses fetched in that run) —
+                                   SHA-256-attested in the ledger (does not
+                                   grow afterwards).
+  data/cache/observations.csv      normalized working copy (OBSERVATION_COLUMNS),
+                                   cumulative view of the entire cache.
+  data/provenance.jsonl            1 audit ledger entry per run, into the hash chain.
 
-Hinweise: Nur öffentliche Infrastruktur-IPs (RIPE-Atlas-Anchors). Freie Tiers haben
-Rate-Limits (pro Quelle gedrosselt) und untersagen z. T. kommerzielle Nutzung —
-akademische Auswertung ist gedeckt. ip-api.com bietet im Free-Tier nur HTTP.
+Notes: only public infrastructure IPs (RIPE Atlas anchors). Free tiers have
+rate limits (throttled per source) and partly prohibit commercial use —
+academic evaluation is covered. ip-api.com offers only HTTP in the free tier.
 
-Aufrufe:
-  python data/fetch_sources.py                 # Standard: erste 50 Anchors, 3 Quellen
-  python data/fetch_sources.py --limit 100     # mehr IPs
-  python data/fetch_sources.py --all           # alle Anchors (Vorsicht: Rate-Limits!)
+Usage:
+  python data/fetch_sources.py                 # default: first 50 anchors, all 9 sources
+  python data/fetch_sources.py --limit 100     # more IPs
+  python data/fetch_sources.py --all           # all anchors (caution: rate limits!)
   python data/fetch_sources.py --sources ip_api,ipwho_is
-  python data/fetch_sources.py --refresh       # Cache ignorieren, neu abrufen
+  python data/fetch_sources.py --refresh       # ignore the cache, fetch anew
 """
 
 from __future__ import annotations
@@ -43,22 +45,29 @@ from data import store  # noqa: E402
 from data import centroids  # noqa: E402
 
 TIMEOUT = 15
-USER_AGENT = "robust-geoip-reference/research (academic; contact via repo)"
+USER_AGENT = "robust-ipgeo/research (academic; contact via repo)"
 SOURCES_RAW = store.SOURCES_RAW_CSV   # dataset-aware (anchors -> sources_raw.jsonl)
 DB_DIR = store.BASE_DIR / "db"
 
-# Tokens für authentifizierte Web-Quellen (aus .env; leer => Quelle meldet Fehler).
+# Tokens for authenticated web sources (from .env; empty => source reports an error).
 IPINFO_TOKEN = store.load_env().get("IPINFO_TOKEN", "")
+# ipwhois.io pro key: switches the ipwho_is source to ipwhois.pro (SAME data basis,
+# verified on 2026-08-21 as coordinate-identical to the free ipwho.is on 8/8
+# sampled IPs; just a higher quota instead of ~1k/day per client IP). Line unchanged.
+IPWHOISIO_KEY = store.load_env(("IPWHOISIO",)).get("IPWHOISIO", "")
 
 
 def _redact(url: str) -> str:
-    """Token aus einer URL entfernen, bevor sie im Cache landet."""
-    return url.replace(IPINFO_TOKEN, "***") if IPINFO_TOKEN and IPINFO_TOKEN in url else url
+    """Remove tokens from a URL before it ends up in the cache."""
+    for tok in (IPINFO_TOKEN, IPWHOISIO_KEY):
+        if tok and tok in url:
+            url = url.replace(tok, "***")
+    return url
 
 
-# ---------- Quellen-Adapter ----------
-# Jeder Parser nimmt den Roh-JSON-Body und liefert
-# (lat, lon, city, country, status); status == "success" oder eine Fehlerkennung.
+# ---------- Source adapters ----------
+# Each parser takes the raw JSON body and returns
+# (lat, lon, city, country, status); status == "success" or an error identifier.
 
 def _parse_ip_api(body: dict):
     if body.get("status") != "success":
@@ -88,7 +97,7 @@ def _to_float_or_none(x):
 
 
 def _parse_geojs(body: dict):
-    # geojs liefert lat/lon als Strings; kein zuverlässiges city-Feld
+    # geojs delivers lat/lon as strings; no reliable city field
     lat, lon = _to_float_or_none(body.get("latitude")), _to_float_or_none(body.get("longitude"))
     if lat is None or lon is None:
         return None, None, None, None, "no_location"
@@ -103,7 +112,7 @@ def _parse_reallyfreegeoip(body: dict):
 
 
 def _parse_ipinfo(body: dict):
-    # ipinfo liefert die Koordinaten gebündelt als loc="lat,lon"
+    # ipinfo delivers the coordinates bundled as loc="lat,lon"
     if body.get("error"):
         err = body["error"]
         return None, None, None, None, (err.get("title") if isinstance(err, dict) else str(err))
@@ -117,28 +126,29 @@ def _parse_ipinfo(body: dict):
     return lat, lon, body.get("city"), body.get("country"), "success"
 
 
-# ---------- Offline-Reader für die lokalen LITE-DBs ----------
-# Eigene, von den Web-APIs unabhängige Linien. Die DB-Dateien liegen in data/db/
-# und sind als Beweisstück bereits in der Provenance-Kette (data/fetch_geodbs.py);
-# hier werden sie nur gelesen. Das Reader-Ergebnis ist die "Antwort" der Quelle
-# (``body``) — analog zum JSON-Body einer HTTP-Quelle, damit Cache/Normalisierung
-# unverändert greifen. Reader werden lazy geöffnet und wiederverwendet.
+# ---------- Offline readers for the local LITE DBs ----------
+# Their own lines, independent of the web APIs. The DB files live in data/db/
+# and are already in the provenance chain as evidence artifacts
+# (data/fetch_geodbs.py); here they are only read. The reader result is the
+# source's "response" (``body``) — analogous to the JSON body of an HTTP source,
+# so that cache/normalization apply unchanged. Readers are opened lazily and
+# reused.
 
 _db_readers: dict[str, object] = {}
 
 
 def _resolve_db(pattern: str) -> Path:
-    """DB in data/db/ auflösen; '*' wählt die neueste passende (z. B. DB-IP-Monat)."""
+    """Resolve a DB in data/db/; '*' picks the newest match (e.g. DB-IP month)."""
     if "*" in pattern:
         matches = sorted(DB_DIR.glob(pattern))
         if not matches:
-            raise FileNotFoundError(f"keine DB passend zu {pattern!r} in {DB_DIR}")
+            raise FileNotFoundError(f"no DB matching {pattern!r} in {DB_DIR}")
         return matches[-1]
     return DB_DIR / pattern
 
 
 def _read_mmdb(pattern: str):
-    """Liefert einen Reader-Callable für eine MaxMind/DB-IP .mmdb (ip -> body)."""
+    """Returns a reader callable for a MaxMind/DB-IP .mmdb (ip -> body)."""
     def read(ip: str) -> dict:
         import geoip2.database
         import geoip2.errors
@@ -156,14 +166,14 @@ def _read_mmdb(pattern: str):
                     "found": False}
         return {"latitude": c.location.latitude, "longitude": c.location.longitude,
                 "city": c.city.name, "country": c.country.iso_code,
-                "accuracy_radius": c.location.accuracy_radius,   # MaxMind-Konfidenzradius (km)
+                "accuracy_radius": c.location.accuracy_radius,   # MaxMind confidence radius (km)
                 "db_file": path.name, "db_version": version,
                 "found": c.location.latitude is not None}
     return read
 
 
 def _read_ip2location(pattern: str):
-    """Liefert einen Reader-Callable für die IP2Location .BIN (ip -> body)."""
+    """Returns a reader callable for the IP2Location .BIN (ip -> body)."""
     def read(ip: str) -> dict:
         import IP2Location
         path = _resolve_db(pattern)
@@ -171,12 +181,12 @@ def _read_ip2location(pattern: str):
         if reader is None:
             reader = IP2Location.IP2Location(str(path))
             _db_readers[str(path)] = reader
-        version = int(path.stat().st_mtime)   # IP2Location-BIN: kein Build-Feld -> Datei-mtime
+        version = int(path.stat().st_mtime)   # IP2Location BIN: no build field -> file mtime
         rec = reader.get_all(ip)
         lat = _to_float_or_none(getattr(rec, "latitude", None))
         lon = _to_float_or_none(getattr(rec, "longitude", None))
         country = getattr(rec, "country_short", None)
-        if country in ("-", "??", None):       # IP2Location-Platzhalter für unbekannt
+        if country in ("-", "??", None):       # IP2Location placeholder for unknown
             return {"latitude": None, "longitude": None, "city": None, "country": None,
                     "accuracy_radius": None, "db_file": path.name, "db_version": version,
                     "found": False}
@@ -187,39 +197,48 @@ def _read_ip2location(pattern: str):
 
 
 def _parse_local(body: dict):
-    """Body eines Offline-Readers -> (lat, lon, city, country, status)."""
+    """Body of an offline reader -> (lat, lon, city, country, status)."""
     if not body or not body.get("found"):
         return None, None, None, None, "not_found"
     return (body.get("latitude"), body.get("longitude"),
             body.get("city"), body.get("country"), "success")
 
 
-# ``lineage`` = bestätigte/angenommene Datenherkunft. Quellen mit GLEICHEM
-# lineage-Token gelten als korreliert (eine effektive Linie) und werden in der
-# Aggregation später per Gewicht kollabiert, nicht gelöscht. "maxmind_geolite"
-# ist die einzige *bestätigt* geteilte Linie; die "*_unverified"-Token markieren
-# Anbieter, die ihre Herkunft nicht offenlegen (vorsichtshalber separat geführt).
+# ``lineage`` = confirmed/assumed data provenance. Sources with the SAME
+# lineage token are considered correlated (one effective line) and are later
+# collapsed by weight in the aggregation, not deleted. "maxmind_geolite"
+# is the only shared line -- with graded evidence quality: geojs
+# DOCUMENTS its GeoLite provenance itself (+ bit-identical to GeoLite2);
+# reallyfreegeoip names no primary source and is assigned only EMPIRICALLY
+# (pairwise median 0.05 km, consistent with a diverging data snapshot of the
+# same basis). The "*_unverified" tokens mark providers that do not disclose
+# their provenance (kept separate as a precaution).
 #
-# Quellen-Arten:
-#   Web-API   -> "url" (+ "min_interval", gedrosselt) + "parse" (JSON-Body)
-#   lokale DB -> "reader" (ip -> body, offline) + "parse" = _parse_local; "db" nur Doku
+# Source kinds:
+#   web API   -> "url" (+ "min_interval", throttled) + "parse" (JSON body)
+#   local DB  -> "reader" (ip -> body, offline) + "parse" = _parse_local; "db" doc only
 SOURCES = {
-    # --- Web-APIs ---
+    # --- Web APIs ---
     "ip_api":          {"url": "http://ip-api.com/json/{ip}",              "min_interval": 1.5, "parse": _parse_ip_api,          "lineage": "ipapi_com_unverified"},
     "ipwho_is":        {"url": "https://ipwho.is/{ip}",                    "min_interval": 0.5, "parse": _parse_ipwho_is,        "lineage": "ipwhois_unverified"},
     "ipinfo":          {"url": "https://ipinfo.io/{ip}/json?token={token}","min_interval": 0.2, "parse": _parse_ipinfo,          "lineage": "ipinfo"},
     "geojs":           {"url": "https://get.geojs.io/v1/ip/geo/{ip}.json", "min_interval": 0.4, "parse": _parse_geojs,           "lineage": "maxmind_geolite"},
     "reallyfreegeoip": {"url": "https://reallyfreegeoip.org/json/{ip}",    "min_interval": 0.4, "parse": _parse_reallyfreegeoip, "lineage": "maxmind_geolite"},
     "ipapi_co":        {"url": "https://ipapi.co/{ip}/json/",              "min_interval": 1.2, "parse": _parse_ipapi_co,        "lineage": "ipapi_co_unverified"},
-    # --- lokale LITE-DBs (offline; eigene unabhängige Linien) ---
+    # --- local LITE DBs (offline; their own independent lines) ---
     "maxmind_geolite2":{"db": "GeoLite2-City.mmdb",         "reader": _read_mmdb("GeoLite2-City.mmdb"),         "parse": _parse_local, "lineage": "maxmind_geolite"},
     "dbip_lite":       {"db": "dbip-city-lite-*.mmdb",      "reader": _read_mmdb("dbip-city-lite-*.mmdb"),      "parse": _parse_local, "lineage": "dbip_lite"},
     "ip2location_lite":{"db": "IP2LOCATION-LITE-DB5.BIN",   "reader": _read_ip2location("IP2LOCATION-LITE-DB5.BIN"), "parse": _parse_local, "lineage": "ip2location_lite"},
 }
 DEFAULT_SOURCES = list(SOURCES)
 
+# With a pro key: same provider/same data via ipwhois.pro, higher quota.
+if IPWHOISIO_KEY:
+    SOURCES["ipwho_is"]["url"] = "https://ipwhois.pro/{ip}?key={ipwhois_key}"
+    SOURCES["ipwho_is"]["min_interval"] = 0.25
 
-# ---------- Rate-Limiting (pro Quelle) ----------
+
+# ---------- Rate limiting (per source) ----------
 
 _last_call: dict[str, float] = {}
 
@@ -234,17 +253,17 @@ def _throttle(source: str) -> None:
     _last_call[source] = time.monotonic()
 
 
-# ---------- Roh-Cache (zugleich Beweisstück) ----------
+# ---------- Raw cache (also an evidence artifact) ----------
 
 def load_raw_cache() -> dict[tuple[str, str], dict]:
-    """{(source, ip) -> Roh-Eintrag} aus dem append-only Cache laden."""
+    """Load {(source, ip) -> raw entry} from the append-only cache."""
     cache: dict[tuple[str, str], dict] = {}
     if SOURCES_RAW.exists():
         with open(SOURCES_RAW, encoding="utf-8") as fh:
             for line in fh:
                 if line.strip():
                     e = json.loads(line)
-                    cache[(e["source"], e["ip"])] = e   # spätere Zeile gewinnt
+                    cache[(e["source"], e["ip"])] = e   # later line wins
     return cache
 
 
@@ -255,11 +274,11 @@ def append_raw_cache(entry: dict) -> None:
 
 
 def _is_cached(entry: dict | None) -> bool:
-    """Gilt als verwertbar gecacht, wenn eine Antwort (Body) vorliegt.
+    """Counts as usably cached when a response (body) is present.
 
-    Transiente Fehler (Timeout/Rate-Limit -> body is None) werden NICHT als gecacht
-    gewertet, damit ein erneuter Lauf sie nachholt. Eine inhaltliche Quellen-Absage
-    (Body vorhanden, status != success) ist dagegen ein gültiges Ergebnis.
+    Transient errors (timeout/rate limit -> body is None) are NOT counted as
+    cached, so a rerun retries them. A substantive source refusal (body
+    present, status != success) is by contrast a valid result.
     """
     return entry is not None and entry.get("body") is not None
 
@@ -268,7 +287,7 @@ _db_version_cache: dict[str, int] = {}
 
 
 def _current_db_version(source: str) -> int | None:
-    """Aktueller Build/Stand der lokalen DB einer Offline-Quelle (für Cache-Invalidierung)."""
+    """Current build/state of an offline source's local DB (for cache invalidation)."""
     if source in _db_version_cache:
         return _db_version_cache[source]
     path = _resolve_db(SOURCES[source]["db"])
@@ -284,9 +303,9 @@ def _current_db_version(source: str) -> int | None:
 
 
 def _cache_valid(entry: dict | None, source: str) -> bool:
-    """Wie _is_cached, aber Offline-Treffer veralten, wenn sich der DB-Build geändert hat
-    (forensisch: Wiederholungslauf reproduziert gegen die AKTUELLE, hash-gepinnte DB,
-    nicht gegen einen Cache aus einem alten DB-Stand)."""
+    """Like _is_cached, but offline hits go stale when the DB build has changed
+    (forensically: a repeat run reproduces against the CURRENT, hash-pinned DB,
+    not against a cache from an old DB state)."""
     if not _is_cached(entry):
         return False
     if "reader" in SOURCES.get(source, {}):
@@ -294,46 +313,47 @@ def _cache_valid(entry: dict | None, source: str) -> bool:
     return True
 
 
-# ---------- Abruf ----------
+# ---------- Retrieval ----------
 
 def query_source(source: str, ip: str, session: requests.Session | None = None) -> dict:
-    """Eine Quelle für eine IP abfragen -> Roh-Eintrag (Body + Metadaten).
+    """Query one source for one IP -> raw entry (body + metadata).
 
-    Wirft nicht; Netz-/Parsefehler landen als ``error`` im Eintrag (``body`` = None).
+    Does not raise; network/parse errors land as ``error`` in the entry
+    (``body`` = None).
     """
     if source not in SOURCES:
-        raise KeyError(f"unbekannte Quelle: {source!r} (bekannt: {', '.join(SOURCES)})")
+        raise KeyError(f"unknown source: {source!r} (known: {', '.join(SOURCES)})")
     src = SOURCES[source]
     fetched_at = store.utc_now_iso()
 
-    # Lokale DB: offline lesen (kein Netz, keine Drosselung). Beweisstück ist die
-    # DB-Datei selbst (per Hash in der Provenance-Kette), nicht dieser Body.
+    # Local DB: read offline (no network, no throttling). The evidence artifact
+    # is the DB file itself (via hash in the provenance chain), not this body.
     if "reader" in src:
         try:
             body = src["reader"](ip)
             return {"source": source, "ip": ip, "fetched_at_utc": fetched_at,
                     "http_status": None, "url": f"local:{body.get('db_file', src.get('db'))}",
                     "body": body}
-        except Exception as e:   # fehlende/defekte DB-Datei
+        except Exception as e:   # missing/broken DB file
             return {"source": source, "ip": ip, "fetched_at_utc": fetched_at,
                     "http_status": None, "url": f"local:{src.get('db')}", "body": None,
                     "error": repr(e)}
 
-    # Web-API: HTTP (Token wird, falls vorhanden, in die URL eingesetzt)
-    url = src["url"].format(ip=ip, token=IPINFO_TOKEN)
+    # Web API: HTTP (the token, if present, is inserted into the URL)
+    url = src["url"].format(ip=ip, token=IPINFO_TOKEN, ipwhois_key=IPWHOISIO_KEY)
     _throttle(source)
     get = (session or requests).get
     try:
         resp = get(url, timeout=TIMEOUT, headers={"User-Agent": USER_AGENT})
         return {"source": source, "ip": ip, "fetched_at_utc": fetched_at,
                 "http_status": resp.status_code, "url": _redact(resp.url), "body": resp.json()}
-    except Exception as e:  # Netzwerk, Timeout, kein JSON (z. B. Rate-Limit-HTML)
+    except Exception as e:  # network, timeout, no JSON (e.g. rate-limit HTML)
         return {"source": source, "ip": ip, "fetched_at_utc": fetched_at,
                 "http_status": None, "url": _redact(url), "body": None, "error": repr(e)}
 
 
 def observation_from_raw(entry: dict) -> dict:
-    """Roh-Eintrag -> normalisierte Beobachtung (OBSERVATION_COLUMNS)."""
+    """Raw entry -> normalized observation (OBSERVATION_COLUMNS)."""
     source, ip = entry["source"], entry["ip"]
     body = entry.get("body")
     if body is None:
@@ -345,16 +365,16 @@ def observation_from_raw(entry: dict) -> dict:
             "city": city, "country": country, "status": status,
             "fetched_at_utc": entry.get("fetched_at_utc"),
             "lineage": SOURCES[source].get("lineage", "unknown"),
-            # Qualitäts-/Default-Felder: Rohwerte hier, Default-Flag in der Annotation
+            # Quality/default fields: raw values here, default flag in the annotation
             "accuracy_radius": (body or {}).get("accuracy_radius"),
             "db_version": (body or {}).get("db_version"),
             "is_default_centroid": False, "centroid_match": ""}
 
 
 def annotate_defaults(observations: list[dict], anchors: list[dict] | None = None) -> list[dict]:
-    """Hub-/Centroid-Default-Flag je Beobachtung setzen (datensatz-abhängig, daher
-    als Nachlauf über ALLE Beobachtungen). Setzt ``is_default_centroid`` + ``centroid_match``
-    in-place (Wächter B). Braucht die volle Quellen-Häufigkeit + ASN je IP."""
+    """Set the hub/centroid default flag per observation (dataset-dependent, hence
+    as a post-pass over ALL observations). Sets ``is_default_centroid`` +
+    ``centroid_match`` in-place (guard B). Needs the full source frequency + ASN per IP."""
     if anchors is None:
         anchors = store.load_anchors_csv()
     asn_of = {a["ip"]: a.get("asn") for a in anchors}
@@ -374,27 +394,44 @@ def annotate_defaults(observations: list[dict], anchors: list[dict] | None = Non
 # ---------- CLI ----------
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Geo-Schätzungen je IP einsammeln (freie APIs, mit Provenance).")
-    ap.add_argument("--limit", type=int, default=50, help="Anzahl Anchors (erste N); Default 50")
-    ap.add_argument("--all", action="store_true", help="alle Anchors (Achtung: Rate-Limits)")
+    ap = argparse.ArgumentParser(description="Collect geo estimates per IP (free APIs, with provenance).")
+    ap.add_argument("--limit", type=int, default=50, help="number of anchors (first N); default 50")
+    ap.add_argument("--all", action="store_true", help="all anchors (caution: rate limits)")
     ap.add_argument("--sources", default=",".join(DEFAULT_SOURCES),
-                    help=f"Komma-Liste; bekannt: {', '.join(SOURCES)}")
-    ap.add_argument("--refresh", action="store_true", help="Cache ignorieren und neu abrufen")
+                    help=f"comma list; known: {', '.join(SOURCES)}")
+    ap.add_argument("--refresh", action="store_true", help="ignore the cache and fetch anew")
     ap.add_argument("--reindex", action="store_true",
-                    help="nicht abrufen: observations.csv neu bauen und den aktuellen "
-                         "Cache als unveränderliches Beweisstück im Ledger registrieren")
+                    help="do not fetch: rebuild observations.csv and register the current "
+                         "cache as an immutable evidence artifact in the ledger")
     args = ap.parse_args()
 
     sources = [s.strip() for s in args.sources.split(",") if s.strip()]
     unknown = [s for s in sources if s not in SOURCES]
     if unknown:
-        ap.error(f"unbekannte Quelle(n): {', '.join(unknown)}")
+        ap.error(f"unknown source(s): {', '.join(unknown)}")
 
     anchors = store.load_anchors_csv()
     ips = [a["ip"] for a in anchors if a.get("ip")]
     if not args.all:
         ips = ips[: args.limit]
     ip_set = set(ips)
+
+    # Guard against silent shrinking (review 2026-08-18): a limit run after
+    # an --all run would truncate the cumulative observations.csv to the
+    # partial IP set AND recompute the frequency hub flags (annotate_defaults)
+    # only on the subpopulation. In that case abort instead of
+    # overwriting; the raw data in the cache is unaffected.
+    try:
+        existing_ips = {o["ip"] for o in store.load_observations_csv()}
+    except FileNotFoundError:
+        existing_ips = set()
+    lost = existing_ips - ip_set
+    if lost:
+        raise SystemExit(
+            f"ABORT: observations.csv covers {len(existing_ips)} IPs; this run "
+            f"would truncate to {len(ip_set)} IPs ({len(lost)} lost) and recompute the "
+            "hub flags on the subpopulation. With --all (plus --reindex if needed) "
+            "the cumulative view runs over all anchors.")
 
     fetch_id = store.new_fetch_id()
     fetched_at = store.utc_now_iso()
@@ -403,7 +440,7 @@ def main() -> None:
     new_entries: list[dict] = []
     if not args.reindex:
         session = requests.Session()
-        print(f"Sammle {len(sources)} Quelle(n) × {len(ips)} IP(s) … (Cache: {len(cache)} Einträge)")
+        print(f"Collecting {len(sources)} source(s) × {len(ips)} IP(s) … (cache: {len(cache)} entries)")
         for i, ip in enumerate(ips, 1):
             for source in sources:
                 if args.refresh or not _cache_valid(cache.get((source, ip)), source):
@@ -412,25 +449,36 @@ def main() -> None:
                     cache[(source, ip)] = entry
                     new_entries.append(entry)
             if i % 25 == 0:
-                print(f"  … {i}/{len(ips)} IPs ({len(new_entries)} neue Abrufe)")
+                print(f"  … {i}/{len(ips)} IPs ({len(new_entries)} new calls)")
 
-    # Unveränderliches Beweisstück dieses Laufs (eigene Datei je fetch_id -> Hash
-    # bleibt stabil, anders als der wachsende Cache): bei --reindex der gesamte für
-    # die IPs relevante Cache, sonst die in diesem Lauf geholten Antworten.
+    # Immutable evidence artifact of this run (its own file per fetch_id -> hash
+    # stays stable, unlike the growing cache): with --reindex the entire cache
+    # relevant to the IPs, otherwise the responses fetched in this run.
     snapshot = ([e for (s, ip), e in cache.items() if ip in ip_set] if args.reindex
                 else new_entries)
     raw_bytes = ("\n".join(json.dumps(e, ensure_ascii=False) for e in snapshot)).encode("utf-8")
     raw_path, sha_raw = store.save_raw(fetch_id, raw_bytes, label="sources")
 
-    # observations.csv = kumulative, normalisierte Sicht des gesamten Caches
+    # observations.csv = cumulative, normalized view of the entire cache.
+    # CAUTION (--reindex): offline entries are NOT invalidated against the
+    # current DB build here (_cache_valid only applies on the fetch path) —
+    # but every row carries its true db_version stamp. After a DB update,
+    # warn below instead of silently baking in stale builds.
+    stale = sum(1 for (s, ip), e in cache.items()
+                if ip in ip_set and "reader" in SOURCES.get(s, {})
+                and not _cache_valid(e, s))
+    if args.reindex and stale:
+        print(f"WARNING: {stale} offline cache entries come from an OLDER "
+              "DB build than the currently pinned one (db_version per row in "
+              "observations.csv; run --refresh for a fresh state).")
     obs = [observation_from_raw(e) for (s, ip), e in cache.items() if ip in ip_set]
     obs.sort(key=lambda o: (o["ip"], o["source"]))
-    annotate_defaults(obs, anchors)            # Hub-/Centroid-Default-Flags setzen
+    annotate_defaults(obs, anchors)            # set hub/centroid default flags
     csv_path = store.save_observations_csv(obs)
     n_success = sum(1 for o in obs if o["status"] == "success")
     n_default = sum(1 for o in obs if o["is_default_centroid"])
 
-    # DB-Beleg je Lauf (welcher mmdb/BIN-Build + Hash hat die Offline-Antworten erzeugt)
+    # DB evidence per run (which mmdb/BIN build + hash produced the offline responses)
     db_evidence = []
     for s in sources:
         if "reader" in SOURCES[s]:
@@ -453,17 +501,17 @@ def main() -> None:
         "n_success": n_success,
         "n_failed": len(obs) - n_success,
         "n_default_centroid": n_default,
-        "dbs": db_evidence,                          # DB-Build + SHA-256 je Offline-Quelle
+        "dbs": db_evidence,                          # DB build + SHA-256 per offline source
         "raw_file": str(raw_path.relative_to(store.BASE_DIR)),
-        "sha256_raw": sha_raw,                       # Beweisstück dieses Laufs (stabil)
+        "sha256_raw": sha_raw,                       # evidence artifact of this run (stable)
         "sha256_observations": store.sha256_json(obs),
     })
 
     mode = "reindex" if args.reindex else "fetch"
-    print(f"\nLauf {fetch_id} ({mode}): {len(obs)} Beobachtungen "
-          f"({n_success} ok, {len(obs) - n_success} fehlgeschlagen, {n_default} Hub-Defaults), "
-          f"{len(new_entries)} neue Abrufe.")
-    print(f"  Beweisstück  : {raw_path}  sha256={sha_raw[:16]}…")
+    print(f"\nRun {fetch_id} ({mode}): {len(obs)} observations "
+          f"({n_success} ok, {len(obs) - n_success} failed, {n_default} hub defaults), "
+          f"{len(new_entries)} new calls.")
+    print(f"  Evidence     : {raw_path}  sha256={sha_raw[:16]}…")
     print(f"  Observations : {csv_path}")
     print(f"  Ledger       : {store.PROVENANCE_FILE}  entry_sha256={entry['entry_sha256'][:16]}…")
 

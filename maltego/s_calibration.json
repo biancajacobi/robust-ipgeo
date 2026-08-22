@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "description": "Frozen two-branch Platt calibration S -> P(aggregation error > 100 km) for live operation of the transforms. Branch 'mobile' applies when ip-api reports mobile=true; otherwise (also when the flag is not retrievable) 'default'. p = sigmoid(a + b*S).",
+    "note_mobile": "In the mobile branch S is nearly uninformative (measured visibility limit of the consensus geometry); the branch mainly delivers the correct base rate. Curve there expectedly flat.",
+    "generated_with": "maltego/make_s_calibration.py",
+    "data_state": "mixed probe pool probes+probes_holdout+probes_mobile_ext, n=1074, tau=100 km, as of 2026-08-18",
+    "feature": "core_w_50 (= S of the transforms, r=50 km, line-weighted)"
+  },
+  "tau_km": 100.0,
+  "branches": {
+    "default": {
+      "a": 1.632271,
+      "b": -4.348276,
+      "n": 984,
+      "base_rate": 0.1535,
+      "bss_insample": 0.156,
+      "bss_oof10": 0.153
+    },
+    "mobile": {
+      "a": 1.484766,
+      "b": -2.533275,
+      "n": 90,
+      "base_rate": 0.4444,
+      "bss_insample": 0.12,
+      "bss_oof10": 0.09
+    }
+  }
+}

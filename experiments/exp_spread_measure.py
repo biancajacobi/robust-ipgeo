@@ -1,24 +1,24 @@
-"""Streuungsmaß-Auswahl für das Konfidenzlabel — welche Dispersion erkennt Misses?
+"""Spread-measure selection for the predecessor label — which dispersion detects misses?
 
-Hintergrund: Das 2D-Konfidenzlabel (exp_t6_defaults, Teil II) nutzte als Streuungs-
-achse die MEDIAN-Paardistanz der Quellpunkte. Die mediane Paardistanz ist robust
-gegen einen einzelnen weit abweichenden Punkt — genau deshalb *übersieht* sie den
-Fall „eine Quelle fällt auf einen fernen Default-Centroid, die übrigen sind einig":
-der Ausreißer hebt die Mediandistanz nicht, der Schätzer kann aber dennoch daneben
-liegen. Dieser Test prüft systematisch, ob ein Streuungsmaß, das den Ausreißer
-*sieht* (Mittelwert, Maximum, Quantile, mittlere Distanz zum Schätzer), die Misses
-besser markiert — und ob der Centroid-Flag (any vs. majority) bei gutem Streuungs-
-maß überhaupt noch etwas beiträgt.
+Background: the 2D predecessor label (exp_t6_defaults, part II) used the MEDIAN
+pairwise distance of the source points as its spread axis. The median pairwise
+distance is robust against a single far-off point — which is exactly why it
+*overlooks* the case "one source falls onto a distant default centroid, the
+rest agree": the outlier does not lift the median distance, yet the estimator
+can still be off. This test systematically checks whether a spread measure that
+*sees* the outlier (mean, maximum, quantiles, mean distance to the estimator)
+marks the misses better — and whether the centroid flag (any vs. majority)
+still contributes anything at all given a good spread measure.
 
-Metrik: Miss = Haversine-Fehler des eingesetzten Schätzers (L1+b) > 100 km
-(gleiche Definition wie run_confidence_recall). Verglichen wird threshold-frei:
-  - Average Precision (Fläche unter Precision/Recall; Boden = Basisrate),
-  - Precision bei festem Recall (fairer Arbeitspunkt-Vergleich),
-  - Orthogonalität: bringt der Centroid-Flag AP-Gewinn ZUSÄTZLICH zum besten
-    Streuungsmaß (logistisches 2-Merkmal-Surrogat)?
+Metric: miss = haversine error of the deployed estimator (L1+b) > 100 km
+(same definition as run_confidence_recall). Compared threshold-free:
+  - average precision (area under precision/recall; floor = base rate),
+  - precision at fixed recall (fair operating-point comparison),
+  - orthogonality: does the centroid flag add AP gain ON TOP of the best
+    spread measure (logistic 2-feature surrogate)?
 
-Aufruf:  python experiments/exp_spread_measure.py
-Ergebnis: Tabelle (stdout) + eval/out/spread_measure_comparison.csv
+Invocation:  python experiments/exp_spread_measure.py
+Result: table (stdout) + eval/out/spread_measure_comparison.csv
 """
 
 from __future__ import annotations
@@ -37,13 +37,13 @@ import experiments.exp_t6_defaults as T6         # noqa: E402
 OUT = Path("eval/out"); OUT.mkdir(parents=True, exist_ok=True)
 MISS_KM = 100.0
 FEATURES = {
-    "median pairwise (alt)": "med",
+    "median pairwise (old)": "med",
     "mean pairwise":         "mean",
     "max pairwise":          "mx",
     "q75 pairwise":          "q75",
     "q90 pairwise":          "q90",
-    "max dist->Schätzer":    "maxd_est",
-    "mean dist->Schätzer":   "mean_d_est",
+    "max dist->estimator":   "maxd_est",
+    "mean dist->estimator":  "mean_d_est",
 }
 
 
@@ -94,7 +94,7 @@ def prec_at_recall(y, s, target):
 
 
 def _logit_ap(d, y, cols):
-    """AP eines logistischen 2-/n-Merkmal-Surrogats (IRLS, dependency-frei)."""
+    """AP of a logistic 2-/n-feature surrogate (IRLS, dependency-free)."""
     X = np.column_stack([np.log1p(d[c].values) if d[c].max() > 1 else d[c].values for c in cols])
     X = (X - X.mean(0)) / (X.std(0) + 1e-9)
     X = np.column_stack([np.ones(len(d)), X])
@@ -115,10 +115,10 @@ def run():
     y = d.y.values
 
     print("=" * 88)
-    print(f"STREUUNGSMASS-VERGLEICH als Miss-Detektor (Miss = Fehler > {MISS_KM:.0f} km)")
-    print(f"n={len(d)}  Misses={int(y.sum())}  Basisrate={y.mean():.3f} (= AP-Boden)")
+    print(f"SPREAD-MEASURE COMPARISON as miss detector (miss = error > {MISS_KM:.0f} km)")
+    print(f"n={len(d)}  misses={int(y.sum())}  base rate={y.mean():.3f} (= AP floor)")
     print("=" * 88)
-    print(f"{'Streuungsmaß':24s} {'AP':>6s}  {'Prec@Rec=0.90':>20s}  {'Prec@Rec=0.72':>20s}")
+    print(f"{'Spread measure':24s} {'AP':>6s}  {'Prec@Rec=0.90':>20s}  {'Prec@Rec=0.72':>20s}")
     out_rows = []
     for name, col in FEATURES.items():
         ap = average_precision(y, d[col].values)
@@ -130,10 +130,10 @@ def run():
                          "prec_at_rec90": round(p9[0], 1), "n_flag_rec90": p9[2],
                          "prec_at_rec72": round(p7[0], 1), "n_flag_rec72": p7[2]})
 
-    print("\nOrthogonalität — bringt der Centroid-Flag AP ZUSÄTZLICH zum besten Streuungsmaß?")
+    print("\nOrthogonality — does the centroid flag add AP ON TOP of the best spread measure?")
     best = max(FEATURES.values(), key=lambda c: average_precision(y, d[c].values))
     combos = {f"{best}": [best], f"{best} + any": [best, "any_c"],
-              f"{best} + majority": [best, "maj_c"], "median + any (alte Achsen)": ["med", "any_c"]}
+              f"{best} + majority": [best, "maj_c"], "median + any (old axes)": ["med", "any_c"]}
     for label, cols in combos.items():
         ap = _logit_ap(d, y, cols)
         print(f"  AP[{label:30s}] = {ap:.3f}")
@@ -141,12 +141,12 @@ def run():
                          "prec_at_rec90": "", "n_flag_rec90": "",
                          "prec_at_rec72": "", "n_flag_rec72": ""})
 
-    print("\nQuadranten-Reinheit: belastbar-Zelle (low_spread & kein hub), Schwelle 50 km")
-    for col, tag in (("med", "median (alt)"), ("mean", "mean (neu)")):
+    print("\nQuadrant purity: reliable cell (low_spread & no hub), threshold 50 km")
+    for col, tag in (("med", "median (old)"), ("mean", "mean (new)")):
         m = (d[col] < 50) & (d.maj_c == 0)
         e = d[m].err
         print(f"  {tag:12s}: n={m.sum():4d}  q95={np.quantile(e, .95):7.1f} km  miss%={100*(e>100).mean():4.1f}")
-        out_rows.append({"measure": f"belastbar-Zelle ({tag})", "ap": "",
+        out_rows.append({"measure": f"reliable cell ({tag})", "ap": "",
                          "prec_at_rec90": f"q95={np.quantile(e,.95):.0f}",
                          "n_flag_rec90": int(m.sum()),
                          "prec_at_rec72": f"miss={100*(e>100).mean():.1f}%", "n_flag_rec72": ""})

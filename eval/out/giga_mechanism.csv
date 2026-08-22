@@ -1,0 +1,9 @@
+country,n_pairs,top_asn,top_asn_share_pct,shared_ip_pct_prefilter,est_locations_maxmind,school_locations,clientinfo_ref_median_km,mobile_flag_pct,hosting_flag_pct
+AL,243,AS35047,74.5,5.0,8,89,7.9,0.0,1.2
+BA,41,AS42560,65.9,2.2,10,25,33.0,22.0,0.0
+FJ,575,AS4638,66.8,33.4,4,124,98.4,16.9,0.0
+KE,38,AS37061,28.9,2.9,5,25,90.3,18.4,0.0
+KZ,453,AS29355,48.3,0.6,23,120,228.0,45.7,0.0
+MD,74,AS8926,55.4,0.0,13,55,6.5,10.8,1.4
+UZ,299,AS8193,61.2,2.0,7,256,281.2,28.8,0.0
+ZA,314,AS29975,54.5,5.1,22,86,611.5,57.0,13.1

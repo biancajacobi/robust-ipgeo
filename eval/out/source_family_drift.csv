@@ -1,3 +1,0 @@
-paar,n,identisch_pct,unter_0_1km_pct,ueber_1km_pct,ueber_100km_pct,median_paardistanz_km,div_err_median_maxmind_km,div_err_median_other_km,div_other_schlechter_pct
-maxmind_geolite2~geojs,1076,100.0,100.0,0.0,0.0,0.0,,,
-maxmind_geolite2~reallyfreegeoip,1066,48.0,52.8,40.2,17.4,0.048,129.1,277.4,59.0

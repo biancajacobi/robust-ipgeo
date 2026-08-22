@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""Antimeridian-Randfall: Kartenabhängigkeit der Grad-Raum-Aggregation (§5.4.2).
+"""Antimeridian edge case: map dependence of raw-degree aggregation.
 
-Im Rohgrad-Raum ist die Aggregation bei ±180° kartenabhängig (ein Paar bei
-179°/−179° erscheint 358° statt 2° entfernt). Dieses Skript prüft die
-empirische Relevanz auf der Anchor-Stichprobe:
+In raw-degree space the aggregation is map-dependent at ±180° (a pair at
+179°/−179° appears 358° apart instead of 2°). This script checks the
+empirical relevance on the anchor sample:
 
-  (a) betroffene Anchors: Beobachtungs-Längengrade mit Rohgrad-Spanne > 180°,
-  (b) wahre (zirkuläre) Längenspanne je Fall (> 180° ⇒ keine kanonische Karte),
-  (c) Kontrollrechnung: L1·b auf pro Anchor re-zentrierten Längengraden
-      (Unwrap um die erste Beobachtung) gegen den Rohgrad-Status-quo.
+  (a) affected anchors: observation longitudes with a raw-degree span > 180°,
+  (b) true (circular) longitude span per case (> 180° ⇒ no canonical map),
+  (c) control computation: L1·b on per-anchor re-centred longitudes
+      (unwrap around the first observation) against the raw-degree status quo.
 
-Befund: Alle betroffenen Fälle entstehen durch weit entfernte Default-
-Ausreißer (der Rohgrad-Raum ÜBERZEICHNET deren Distanz → stärkere robuste
-Dämpfung, pro-robust); ehrliche Cluster am Antimeridian treten nicht auf.
-Die Re-Zentrierung ändert die Schätzungen nur um Kilometer — außer dort, wo
-die wahre Spanne > 180° ist: Dort ist Re-Zentrierung selbst nicht wohl-
-definiert und kann drastisch verschlechtern.
+Finding: all affected cases arise from far-away default outliers (raw-degree
+space OVERSTATES their distance → stronger robust down-weighting,
+pro-robust); honest clusters at the antimeridian do not occur. Re-centring
+changes the estimates only by kilometres — except where the true span is
+> 180°: there re-centring itself is not well-defined and can degrade
+drastically.
 
-Ergebnis: Tabelle (stdout) + eval/out/antimeridian_check.csv
+Output: table (stdout) + eval/out/antimeridian_check.csv
 """
 from __future__ import annotations
 
@@ -41,12 +41,12 @@ EPS = 10
 
 
 def wrap(x):
-    """Längengrad nach (−180, 180]."""
+    """Longitude to (−180, 180]."""
     return (x + 180.0) % 360.0 - 180.0
 
 
 def true_span(lons):
-    """Zirkuläre Längenspanne: 360° minus größte Lücke zwischen den Längengraden."""
+    """Circular longitude span: 360° minus the largest gap between longitudes."""
     s = np.sort(np.mod(lons, 360.0))
     gaps = np.diff(np.concatenate([s, [s[0] + 360.0]]))
     return float(360.0 - gaps.max())
@@ -72,14 +72,14 @@ def main():
         rows.append({"ip": c["ip"],
                      "raw_span_deg": round(raw_span, 1),
                      "true_span_deg": round(true_span(lons), 1),
-                     "err_roh_km": round(e_raw, 1),
-                     "err_rezentriert_km": round(e_rec, 1),
+                     "err_raw_km": round(e_raw, 1),
+                     "err_recentred_km": round(e_rec, 1),
                      "delta_km": round(e_rec - e_raw, 1)})
 
     df = pd.DataFrame(rows).sort_values("delta_km", ascending=False)
     df.to_csv(OUT / "antimeridian_check.csv", index=False)
-    print(f"Anchors mit Rohgrad-Spanne > 180°: {len(df)} von {len(cases)}")
-    print(f"davon wahre Spanne > 180° (keine kanonische Karte): "
+    print(f"Anchors with raw-degree span > 180°: {len(df)} of {len(cases)}")
+    print(f"of which true span > 180° (no canonical map): "
           f"{int((df['true_span_deg'] > 180).sum())}")
     print(df.to_string(index=False))
     print(f"\nCSV: {OUT}/antimeridian_check.csv")

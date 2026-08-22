@@ -1,23 +1,23 @@
-"""Brätz' klassen-/dichtebasiertes Schätzverfahren (zu untersuchendes Verfahren).
+"""Braetz's class-/density-based estimation method (method under investigation).
 
-Referenz: Brätz, M. — "Entwicklung eines Schätzverfahrens zur Bestimmung
+Reference: Braetz, M. — "Entwicklung eines Schätzverfahrens zur Bestimmung
 robuster Referenzwerte auf geringer Datenbasis unbekannter Güte"
-(siehe references.bib, ``braetz``).
+(see references.bib, ``braetz``).
 
-Das Verfahren läuft eindimensional pro Koordinate. Für einen 2D-Standort wird
-es je einmal auf die Breiten- und die Längen-Reihe angewandt (``estimate``).
+The method runs one-dimensionally per coordinate. For a 2D location it is
+applied once each to the latitude and the longitude series (``estimate``).
 
-Schritte (rekonstruiert aus Braetz 2009; kritisch geprueft —
-Auswertung in experiments/exp_braetz.py):
-  1. Werte in k Klassen einteilen (empirisch gewählte Klassenzahl k).
-  2. Dichte/Häufigkeit je Klasse bestimmen, dichteste Klasse(n) wählen.
-  3. optional Fuzzy-Zugehörigkeit an Klassengrenzen (``fuzzy``).
-  4. robusten Lageschätzer innerhalb der gewählten Klasse(n) bilden.
-  5. Konfidenz/Streuungsmaß ableiten (Verteilungsannahme dokumentieren!).
+Steps (reconstructed from Braetz 2009, critically examined as T5 in the
+accompanying paper — evaluation in experiments/exp_braetz.py):
+  1. Partition values into k classes (empirically chosen class count k).
+  2. Determine density/frequency per class, pick the densest class(es).
+  3. Optional fuzzy membership at class boundaries (``fuzzy``).
+  4. Form a robust location estimator within the chosen class(es).
+  5. Derive a confidence/dispersion measure (document the distribution assumption!).
 
-Kritikpunkte, die als Experiment zu belegen sind: Nutzen der Fuzzy-Stufe,
-Normalverteilungsannahme (Q-Q), Sensitivität gegenüber k, Validität der
-Konfidenz, Zirkularität.
+Points of criticism to be substantiated by experiment: benefit of the fuzzy
+stage, normality assumption (Q-Q), sensitivity to k, validity of the
+confidence, circularity.
 """
 
 from __future__ import annotations
@@ -25,37 +25,39 @@ from __future__ import annotations
 import numpy as np
 
 
-K_MAX = 30              # Brätz-Default (Konvergenz im Bereich k≈26–30, Tab. 4.1)
-DENSITY_THRESHOLD = 2   # Hauptlauf: Brätz' Untergrenze aus dem Abbruchkriterium
-                        # (Original 4 ist für n≈30 gedacht und bei n=8 zu hart → Sensitivity)
+K_MAX = 30              # Braetz default (convergence in the range k≈26–30, Braetz 2009, Tab. 4.1)
+DENSITY_THRESHOLD = 2   # main run: Braetz's lower bound from the stopping criterion
+                        # (original 4 is meant for n≈30 and too harsh at n=8 → sensitivity)
 
 
 def braetz_1d(values, k_max: int = K_MAX, density_threshold: int = DENSITY_THRESHOLD,
               return_sequence: bool = False):
-    """Brätz' Fuzzy-Dichte-Schätzer für eine 1D-Wertereihe (Braetz 2009, Kap. 4).
+    """Braetz's fuzzy density estimator for a 1D value series (Braetz 2009, ch. 4).
 
-    Verfahren (1:1 nach Brätz 2009):
-      1. Klassenzahl k = 1..k_max sukzessiv erhöhen; Spanne [min,max] in k gleich
-         breite Intervalle, Werte je Intervall zählen.
-      2. Pro k das dichteste Intervall (höchste Kardinalität) wählen und durch seine
-         **Klassen-Mitte** repräsentieren -> ein Mitten-Wert je k.
-      3. Abbruch, sobald das dichteste Intervall nur noch ≤1 Wert enthält (Intervalle
-         zu klein -> Scheingenauigkeit; „Unschärfe" muss erhalten bleiben).
-      4. Bereinigung: nur Mitten behalten, deren Intervall ≥ ``density_threshold``
-         Werte hatte (Brätz entfernt lokale Dichte < 4; hier parametrisiert).
-      5. Schätzwert = Mittelwert der bereinigten Mitten-Folge.
+    Procedure (1:1 after Braetz 2009):
+      1. Successively increase the class count k = 1..k_max; split the range
+         [min,max] into k equally wide intervals, count values per interval.
+      2. Per k, pick the densest interval (highest cardinality) and represent it
+         by its **class midpoint** -> one midpoint value per k.
+      3. Stop as soon as the densest interval contains only ≤1 value (intervals
+         too small -> spurious precision; the "fuzziness" must be preserved).
+      4. Cleanup: keep only midpoints whose interval had ≥ ``density_threshold``
+         values (Braetz removes local density < 4; parameterized here).
+      5. Estimate = mean of the cleaned midpoint sequence.
 
-    Die Mitten-Folge ist (bei normalverteilter Stichprobe) approximativ normalverteilt
-    um den Ort höchster Dichte — darauf beruht das Student-t-KI (s. ``braetz_ci``).
+    The midpoint sequence is (for a normally distributed sample) approximately
+    normally distributed around the location of highest density — the Student-t
+    CI rests on this (see ``braetz_ci``).
 
-    Mit ``return_sequence`` zusätzlich die bereinigte Mitten-Folge (für Diagnose/KI).
+    With ``return_sequence`` additionally the cleaned midpoint sequence (for
+    diagnostics/CI).
     """
     v = np.asarray(values, dtype=float)
     v = v[~np.isnan(v)]
     if v.size == 0:
-        raise ValueError("leere Wertereihe")
+        raise ValueError("empty value series")
     lo, hi = float(v.min()), float(v.max())
-    if hi == lo:                                   # entartet: alle Werte gleich
+    if hi == lo:                                   # degenerate: all values equal
         return (lo, np.array([lo])) if return_sequence else lo
 
     mids, dens = [], []
@@ -64,26 +66,27 @@ def braetz_1d(values, k_max: int = K_MAX, density_threshold: int = DENSITY_THRES
         idx = np.minimum(((v - lo) / width).astype(int), k - 1)
         counts = np.bincount(idx, minlength=k)
         max_count = int(counts.max())
-        if max_count <= 1:                         # Abbruchkriterium (≤1 Wert/Klasse)
+        if max_count <= 1:                         # stopping criterion (≤1 value/class)
             break
-        winner = int(counts.argmax())              # Tie: niedrigster Index (deterministisch)
-        mids.append(lo + (winner + 0.5) * width)   # Klassen-Mitte
+        winner = int(counts.argmax())              # tie: lowest index (deterministic)
+        mids.append(lo + (winner + 0.5) * width)   # class midpoint
         dens.append(max_count)
 
     mids = np.asarray(mids, dtype=float)
     dens = np.asarray(dens, dtype=int)
     kept = mids[dens >= density_threshold]
-    if kept.size == 0:                             # Fallback: nie leer zurückgeben
+    if kept.size == 0:                             # fallback: never return empty
         kept = mids if mids.size else np.array([(lo + hi) / 2])
     est = float(kept.mean())
     return (est, kept) if return_sequence else est
 
 
 def braetz_ci(values, alpha: float = 0.05, **kw):
-    """(Schätzwert, KI-Halbbreite, Mitten-Folge) — Student-t auf der Mitten-Folge.
+    """(estimate, CI half-width, midpoint sequence) — Student-t on the midpoint sequence.
 
-    Das ist Brätz' Konfidenz: die *interne* Sicherheit der Mitten-Folge (df = m−1),
-    NICHT die Distanz zur Ground Truth — zentrale Unterscheidung für die T5-Kritik.
+    This is Braetz's confidence: the *internal* certainty of the midpoint
+    sequence (df = m−1), NOT the distance to the ground truth — the central
+    distinction for the T5 criticism.
     """
     from scipy import stats
     est, seq = braetz_1d(values, return_sequence=True, **kw)
@@ -96,13 +99,13 @@ def braetz_ci(values, alpha: float = 0.05, **kw):
 
 
 def estimate(points, k_max: int = K_MAX, density_threshold: int = DENSITY_THRESHOLD) -> np.ndarray:
-    """Standort-Schätzer (lat, lon): Brätz je Koordinate separat.
+    """Location estimator (lat, lon): Braetz per coordinate separately.
 
-    Einheitliche Schnittstelle wie in ``estimators.baselines`` (fn(points) -> (2,)).
+    Uniform interface as in ``estimators.baselines`` (fn(points) -> (2,)).
     """
     pts = np.asarray(points, dtype=float)
     if pts.ndim != 2 or pts.shape[1] != 2:
-        raise ValueError(f"erwarte Form (n, 2) [lat, lon], erhalten {pts.shape}")
+        raise ValueError(f"expected shape (n, 2) [lat, lon], got {pts.shape}")
     lat = braetz_1d(pts[:, 0], k_max=k_max, density_threshold=density_threshold)
     lon = braetz_1d(pts[:, 1], k_max=k_max, density_threshold=density_threshold)
     return np.array([lat, lon])

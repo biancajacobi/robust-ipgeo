@@ -6,6 +6,9 @@ venv/
 .pytest_cache/
 .ipynb_checkpoints/
 
+# macOS
+.DS_Store
+
 # Secrets — never commit real credentials; only .env.example is tracked
 .env
 *.env
@@ -15,6 +18,13 @@ venv/
 data/db/
 data/cache/raw/
 data/cache/sources_raw*.jsonl
+
+# Raw Giga API pages (unpseudonymized school IPs — never commit)
+data/cache/giga_measurements_raw*.jsonl
+
+# Regenerated per-dataset suite outputs and result figures (per-case tables stay local)
+eval/out_*/
+eval/out/*.png
 
 # Result figures/archives are regenerated; CSV result tables ARE tracked
 *.zip

@@ -1,17 +1,16 @@
-"""radius_table.json neu erzeugen (nach einem neuen Anchor-Fetch/Reindex).
+"""Regenerate radius_table.json (after a fresh anchor fetch/reindex).
 
-Berechnet je Quelle den globalen Leave-one-out-Median des Quellfehlers auf dem
-Anchor-Datensatz (identisch zu experiments/exp_t6_defaults.loo_pseudo_radii,
-Eintrag "_global") und friert ihn als statische Tabelle fuer den Live-Betrieb
-der Maltego-Transforms ein.
+Computes, per source, the global leave-one-out median of the source error on
+the anchor dataset (identical to experiments/exp_t6_defaults.loo_pseudo_radii,
+entry "_global") and freezes it as a static table for live operation of the
+Maltego transforms.
 
-ACHTUNG: braucht den ECHTEN Anchor-Datenbestand (data/cache/ + anchors, im
-oeffentlichen Repo nicht enthalten bzw. pseudonymisiert). Die mitgelieferte
-radius_table.json wurde aus den Originaldaten erzeugt — normalerweise gibt es
-keinen Grund, sie neu zu bauen; auf pseudonymisierten/fremden Daten entstuende
-eine stillschweigend falsche Tabelle.
+CAUTION: requires the REAL anchor data (data/cache/ + anchors). The bundled
+radius_table.json was generated from the original data -- there is normally no
+reason to rebuild it; running this on pseudonymized or third-party data would
+silently produce a wrong table.
 
-Aufruf:  python maltego/make_radius_table.py
+Usage:  python maltego/make_radius_table.py
 """
 
 from __future__ import annotations
@@ -34,22 +33,22 @@ def main() -> None:
     table = {s: round(d["_global"], 1) for s, d in sorted(loo.items())}
     payload = {
         "_meta": {
-            "beschreibung": (
-                "Eingefrorene Pseudo-Radien je Quelle (km): globaler Leave-one-out-"
-                "Median des Quellfehlers aus der Anchor-Evaluation der Arbeit. "
-                "Ersetzt im Live-Betrieb die per-IP-LOO-Radien, da fuer eine "
-                "unbekannte IP keine Ground Truth vorliegt. MaxMind nutzt weiterhin "
-                "den live gelieferten accuracy_radius."
+            "description": (
+                "Frozen per-source pseudo radii (km): global leave-one-out "
+                "median of the source error from the anchor evaluation of the "
+                "accompanying paper. Replaces the per-IP LOO radii in live "
+                "operation, since no ground truth exists for an unknown IP. "
+                "MaxMind keeps using its live-reported accuracy_radius."
             ),
-            "erzeugt_mit": "maltego/make_radius_table.py",
-            "datenstand": (f"anchors-Datensatz, n={len(cases)} Faelle, Stand "
+            "generated_by": "maltego/make_radius_table.py",
+            "data_state": (f"anchors dataset, n={len(cases)} cases, as of "
                            f"{datetime.now(timezone.utc).date().isoformat()}"),
-            "einheit": "km",
+            "unit": "km",
         },
         "radii_km": table,
     }
     OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"{OUT} geschrieben ({len(table)} Quellen, n={len(cases)} Faelle).")
+    print(f"Wrote {OUT} ({len(table)} sources, n={len(cases)} cases).")
 
 
 if __name__ == "__main__":

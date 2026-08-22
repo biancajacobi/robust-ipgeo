@@ -1,2 +1,2 @@
-# Zusaetzlich zu ../requirements.txt (numpy/requests/geoip2/IP2Location kommen von dort):
+# In addition to ../requirements.txt (numpy/requests/geoip2/IP2Location come from there):
 maltego-trx>=1.6

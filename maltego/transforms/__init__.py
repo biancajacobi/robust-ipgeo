@@ -1,2 +1,2 @@
-# maltego-trx entdeckt Transform-Klassen selbst (pkgutil): je Datei eine Klasse
-# GLEICHEN Namens (CamelCase), die DiscoverableTransform erweitert.
+# maltego-trx discovers transform classes itself (pkgutil): one class per file
+# with the SAME name (CamelCase), extending DiscoverableTransform.

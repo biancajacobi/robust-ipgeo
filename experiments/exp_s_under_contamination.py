@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Stütz-Konzentration S unter koordinierter Kontamination (T2-Angriffsmodell).
+"""The risk signal S (line-weighted support concentration) under coordinated contamination (T2 attack model).
 
-Frage (§4.6/§5.1): „Scheitert laut, nicht leise" ist auf dem natürlichen
-Fehler-Regime kalibriert — bleibt der Wächter auch dann laut, wenn ein
-Angreifer den Schätzer jenseits des Breakdown kapert?
+Question: "fails loudly, not quietly" is calibrated on the natural error
+regime — does the guard stay loud even when an attacker hijacks the
+estimator beyond its breakdown point?
 
-Aufbau: identisches Kontaminationsmodell wie T2 (zufällige Quellen-Teilmenge,
-koordinierte Breitengrad-Verschiebung um 2.000 km Richtung Äquator), Schätzer
-L1·b (Headline), S = linien-gewichtete Stütz-Konzentration (r = 50 km) um die
-kontaminierte Schätzung. Flag-Schwelle = 41-%-Quantil der natürlichen
-S-Verteilung (gleicher Arbeitspunkt wie in T6). Berichtet je Kontaminations-
-stufe: Fehler-Median, S-Median gesamt, S-Median der GEKAPERTEN Schätzungen
-(Fehler > 1.000 km) und deren Anteil OBERHALB der Flag-Schwelle
-(= „selbstbewusst falsch": gekapert, aber nicht geflaggt).
+Setup: identical contamination model as T2 (random source subset,
+coordinated latitude shift of 2,000 km towards the equator), estimator
+L1·b (headline), S = line-weighted support concentration (r = 50 km) around
+the contaminated estimate. Flag threshold = 41 % quantile of the natural
+S distribution (same operating point as in T6, matched to the
+predecessor-label comparison). Reported per contamination level: error
+median, S median overall, S median of the HIJACKED estimates
+(error > 1,000 km) and their share ABOVE the flag threshold
+(= "confidently wrong": hijacked, but not flagged).
 
-Ergebnis: Tabelle (stdout) + eval/out/s_under_contamination.csv
-          + eval/out/s_under_contamination.png
+Output: table (stdout) + eval/out/s_under_contamination.csv
+        + eval/out/s_under_contamination.png
 """
 from __future__ import annotations
 
@@ -41,9 +42,9 @@ OUT.mkdir(parents=True, exist_ok=True)
 EPS = 10
 OFFSET_KM = 2000.0
 ALPHAS = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6)
-B = 3                    # Wiederholungen je Stufe (Median über 1.077 Anchors stabil)
-FLAG_QUOTE = 0.41        # T6-Arbeitspunkt (Flag-Quote des Vorgängerlabel-Vergleichs)
-CAPTURED_KM = 1000.0     # „gekapert": Fehler jenseits des natürlichen Regimes
+B = 3                    # repetitions per level (median over 1,077 anchors is stable)
+FLAG_RATE = 0.41         # T6 operating point (flag rate of the predecessor-label comparison)
+CAPTURED_KM = 1000.0     # "hijacked": error beyond the natural regime
 
 
 def s_value(case, est):
@@ -57,7 +58,7 @@ def s_value(case, est):
 def contaminate_case(case, alpha, rng):
     cc = copy.deepcopy(case)
     n = len(cc["provenance"])
-    k = int(np.floor(alpha * n + 0.5))          # kaufmännisch, wie T2
+    k = int(np.floor(alpha * n + 0.5))          # round half up, as in T2
     if k:
         dlat = OFFSET_KM / 111.32
         for i in rng.choice(n, size=k, replace=False):
@@ -72,13 +73,13 @@ def main():
 
     nat_S = np.array([s_value(c, estimate(c, "L1", "b", loo, eps=EPS))
                       for c in cases])
-    thr = float(np.quantile(nat_S, FLAG_QUOTE))
-    print(f"natürlich: Median S = {np.median(nat_S):.2f}, "
-          f"Flag-Schwelle (Quote {FLAG_QUOTE:.0%}) t = {thr:.3f}\n")
+    thr = float(np.quantile(nat_S, FLAG_RATE))
+    print(f"natural: median S = {np.median(nat_S):.2f}, "
+          f"flag threshold (rate {FLAG_RATE:.0%}) t = {thr:.3f}\n")
 
     rows = []
     for ai, alpha in enumerate(ALPHAS):
-        rng = np.random.default_rng([0, ai])    # je Stufe reproduzierbar
+        rng = np.random.default_rng([0, ai])    # reproducible per level
         errs, ss = [], []
         for _ in range(B):
             for c in cases:
@@ -99,29 +100,29 @@ def main():
         })
         r = rows[-1]
         print(f"alpha={alpha:.1f}  errMed={r['err_median_km']:>8}  "
-              f"S-Med={r['s_median_all']:.2f}  gekapert n={r['n_captured']:>5}  "
-              f"S-Med(gek.)={r['s_median_captured']}  "
-              f"ungeflaggt={r['captured_unflagged_pct']} %")
+              f"S-med={r['s_median_all']:.2f}  hijacked n={r['n_captured']:>5}  "
+              f"S-med(hij.)={r['s_median_captured']}  "
+              f"unflagged={r['captured_unflagged_pct']} %")
 
     df = pd.DataFrame(rows)
     df.to_csv(OUT / "s_under_contamination.csv", index=False)
 
-    # ---- Plot: S entlang der Kontaminationskurve, Flag-Schwelle als Grenze
+    # ---- plot: S along the contamination curve, flag threshold as boundary
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
     x = np.array(ALPHAS) * 100
     ax.plot(x, df["s_median_all"], "o-", color="#1f77b4",
-            label="S-Median (alle Schätzungen)")
+            label="S median (all estimates)")
     m = df["s_median_captured"].notna()
     ax.plot(x[m.values], df.loc[m, "s_median_captured"], "s--", color="#d62728",
-            label="S-Median (gekaperte Schätzungen, Fehler > 1.000 km)")
+            label="S median (hijacked estimates, error > 1,000 km)")
     ax.axhline(thr, color="0.3", ls=":",
-               label=f"Flag-Schwelle t = {thr:.2f} (Flag-Quote 41 %)")
+               label=f"flag threshold t = {thr:.2f} (flag rate 41 %)")
     ax.axvspan(50, x.max(), color="0.9",
-               label="jenseits des Schätzer-Breakdown")
-    ax.set_xlabel(r"nominaler Kontaminationsanteil $\alpha_{\mathrm{nom}}$ [%]")
-    ax.set_ylabel("Stütz-Konzentration S")
+               label="beyond estimator breakdown")
+    ax.set_xlabel(r"nominal contamination share $\alpha_{\mathrm{nom}}$ [%]")
+    ax.set_ylabel("support concentration S")
     ax.set_ylim(0, 1.0)
-    ax.set_title("S unter koordinierter Kontamination")
+    ax.set_title("S under coordinated contamination")
     ax.legend(loc="lower left", fontsize=9)
     ax.grid(alpha=0.25)
     fig.tight_layout()

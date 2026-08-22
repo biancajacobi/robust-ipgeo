@@ -1,0 +1,18 @@
+population,view,predictor,bss,ap,ece,n,misses,median_km,tail_pct
+anchors,point,hybrid_point,,,,1077,108,3.44,10.0
+anchors,oof,S_all around single-source point,0.302,0.497,0.016,1077,108,,
+anchors,oof,S_rest_obs (without chosen observation),0.302,0.498,0.016,1077,108,,
+anchors,oof,S_rest_lineage (without chosen line),0.302,0.498,0.016,1077,108,,
+anchors,oof,predecessor label med+hub,0.019,0.158,0.021,1077,108,,
+anchors,oof,CROSS: regular S (around L1*b),0.07,0.247,0.02,1077,108,,
+anchors,oof_agg_event,regular S (around L1*b),0.21,,,1077,129,,
+anchors,oof_agg_event,predecessor label med+hub,0.068,,,1077,129,,
+probes,point,hybrid_point,,,,500,63,3.13,12.6
+probes,frozen,S_all,0.169,0.449,0.038,500,63,,
+probes,oof,S_all,0.173,0.354,0.014,500,63,,
+probes,frozen,S_rest_obs,0.169,0.451,0.038,500,63,,
+probes,oof,S_rest_obs,0.173,0.353,0.014,500,63,,
+probes,frozen,S_rest_lineage,0.169,0.451,0.038,500,63,,
+probes,oof,S_rest_lineage,0.173,0.353,0.014,500,63,,
+probes,frozen,predecessor label med+hub,0.026,0.247,0.044,500,63,,
+probes,oof,predecessor label med+hub,0.06,0.273,0.018,500,63,,

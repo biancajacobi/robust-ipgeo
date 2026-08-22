@@ -1,4 +1,4 @@
-"""Tests für die Quellen-Adapter (netzfrei): Parser, Normalisierung, CSV."""
+"""Tests for the source adapters (offline): parsers, normalization, CSV."""
 
 import sys
 from pathlib import Path
@@ -9,7 +9,7 @@ from data import fetch_sources as fs
 from data import store
 
 
-# echte Roh-Antwort-Ausschnitte je API (gekürzt) für dieselbe IP
+# real raw-response excerpts per API (truncated) for the same IP
 IP_API_OK = {"status": "success", "city": "Dubai", "countryCode": "AE",
              "lat": 25.0657, "lon": 55.1713}
 IPAPI_CO_OK = {"latitude": 38.9072, "longitude": -77.0369, "city": "Washington", "country": "US"}
@@ -47,7 +47,7 @@ def test_parse_reallyfreegeoip_floats_and_missing():
     body = {"latitude": 51.4964, "longitude": -0.1224, "country_code": "GB", "city": ""}
     lat, lon, city, country, status = fs._parse_reallyfreegeoip(body)
     assert (lat, lon, country, status) == (51.4964, -0.1224, "GB", "success")
-    assert city is None  # leere city -> None
+    assert city is None  # empty city -> None
     *_, status = fs._parse_reallyfreegeoip({})
     assert status == "no_location"
 
@@ -84,7 +84,7 @@ def test_observations_csv_roundtrip(tmp_path):
     loaded = store.load_observations_csv(path)
     assert len(loaded) == 2
     assert loaded[0]["source"] == "ip_api" and loaded[0]["city"] == "Dubai"
-    # CSV ist textbasiert -> Werte kommen als Strings zurück
+    # CSV is text-based -> values come back as strings
     assert loaded[1]["lat"] == "51.5"
 
 
@@ -95,9 +95,9 @@ def test_unknown_source_rejected():
 
 
 def test_is_cached_only_with_body():
-    # transienter Fehler (body None) gilt NICHT als gecacht -> wird erneut versucht
+    # a transient error (body None) does NOT count as cached -> retried next run
     assert fs._is_cached({"body": None, "error": "Timeout()"}) is False
     assert fs._is_cached(None) is False
-    # Body vorhanden (auch inhaltliche Absage) gilt als gültiges, gecachtes Ergebnis
+    # a body being present (even a substantive refusal) counts as a valid, cached result
     assert fs._is_cached({"body": {"status": "fail"}}) is True
     assert fs._is_cached({"body": IP_API_OK}) is True

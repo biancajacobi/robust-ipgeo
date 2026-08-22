@@ -1,14 +1,17 @@
-"""Vergleich Anchors vs. Probes auf identischer Pipeline (direktionaler Stresstest).
+"""Comparison of anchors vs. probes on an identical pipeline (directional stress test).
 
-Laedt BEIDE Datensaetze explizit (kein Env-Switch noetig), beschraenkt auf die in
-beiden vorhandenen Quellen (fairer Vergleich) und berichtet je Datensatz dieselben
-Kern-Metriken: Einzelquellen-Genauigkeit, robuste Aggregation L1*b, Schwierigkeits-
-Eimer, Braetz, Default-Rate. Schreibt eval/out_probes/probes_vs_anchors.csv.
+Loads BOTH datasets explicitly (no env switch needed). The SINGLE-SOURCE rows
+are restricted to the sources present in both (fair comparison); the
+aggregations run on each dataset's FULL source set (anchor headline incl. the
+ipapi_co residual hits, see comment in main). Reports the same core metrics
+per dataset:
+single-source accuracy, robust aggregation L1*b, difficulty bucket, Braetz,
+default rate. Writes eval/out_probes/probes_vs_anchors.csv.
 
-VORBEHALT: Probe-Koordinaten sind selbstgemeldet + privacy-gerundet -> rauschigere
-Ground Truth. Hoehere Probe-Fehler mischen (a) schwerere IPs und (b) GT-Rauschen.
+CAVEAT: probe coordinates are self-reported + privacy-rounded -> noisier ground
+truth. Higher probe errors mix (a) harder IPs and (b) GT noise.
 
-Aufruf:  python experiments/exp_probes_compare.py
+Invocation: python experiments/exp_probes_compare.py
 """
 
 from __future__ import annotations
@@ -39,7 +42,7 @@ def cases_from(truth_csv, obs_csv):
 
 
 def restrict(cases, sources):
-    """Faelle auf eine Quellen-Teilmenge beschneiden (fairer Quellen-Schnitt)."""
+    """Restrict cases to a subset of sources (fair source cut)."""
     out = []
     for c in cases:
         prov = [p for p in c["provenance"] if p["source"] in sources]
@@ -55,13 +58,13 @@ def restrict(cases, sources):
 def metrics(cases, label):
     loo = T6.loo_pseudo_radii(cases)
     eps = min(T6.EPS_GRID, key=lambda e: abs(e - float(np.median([loo[s]["_global"] for s in loo]))))
-    # Einzelquellen
+    # Individual sources
     src = {}
     for c in cases:
         for p in c["provenance"]:
             src.setdefault(p["source"], []).append(haversine_error((p["lat"], p["lon"]), c["truth"]))
-    # Aggregationen + Braetz + Buckets
-    agg, gm, bra, buckets = [], [], [], {"easy": 0, "uneinig": 0, "hart": 0}
+    # Aggregations + Braetz + buckets
+    agg, gm, bra, buckets = [], [], [], {"easy": 0, "disagree": 0, "hard": 0}
     defrate = []
     for c in cases:
         agg.append(haversine_error(T6.estimate(c, "L1", "b", loo, eps=eps), c["truth"]))
@@ -83,8 +86,8 @@ def metrics(cases, label):
     rows.append({"dataset": label, "name": "geom_median (L0)", **stat(gm)})
     rows.append({"dataset": label, "name": "braetz", **stat(bra)})
     meta = {"dataset": label, "n_cases": n, "eps_headline": eps,
-            "bucket_easy": buckets["easy"], "bucket_uneinig": buckets["uneinig"],
-            "bucket_hart": buckets["hart"], "majority_default_pct": round(100 * np.mean(defrate), 1)}
+            "bucket_easy": buckets["easy"], "bucket_disagree": buckets["disagree"],
+            "bucket_hard": buckets["hard"], "majority_default_pct": round(100 * np.mean(defrate), 1)}
     return rows, meta
 
 
@@ -107,19 +110,19 @@ def classify(tags):
 
 
 def _agg_errors(cases):
-    """Aggregationsfehler L1*b je Fall (eigene LOO/eps pro Datensatz)."""
+    """L1*b aggregation error per case (dataset-specific LOO/eps)."""
     loo = T6.loo_pseudo_radii(cases)
     eps = min(T6.EPS_GRID, key=lambda e: abs(e - float(np.median([loo[s]["_global"] for s in loo]))))
     return np.array([haversine_error(T6.estimate(c, "L1", "b", loo, eps=eps), c["truth"]) for c in cases])
 
 
 def stratify_by_tag(prb_cases, mob_cases=None):
-    """Probes nach Anschluss-Klasse (home/nat, mobile, datacentre) aufschlüsseln.
+    """Break down probes by connection class (home/nat, mobile, datacentre).
 
-    Kontrolliert teils den GT-Rausch-Confound: innerhalb des Probe-Sets ist die
-    GT-Qualität vergleichbar, sodass Klassenunterschiede primär die Lokalisierbarkeit
-    der IP-Klasse widerspiegeln (residentiell/NAT vs. Rechenzentrum). ``mob_cases``:
-    optionaler, gezielt gezogener Mobile-Datensatz (eigener Bucket, groesseres n)."""
+    Partly controls the GT-noise confound: within the probe set, GT quality is
+    comparable, so class differences primarily reflect the localizability of the
+    IP class (residential/NAT vs. data center). ``mob_cases``: optional,
+    deliberately sampled mobile dataset (its own bucket, larger n)."""
     tags = load_tags()
     loo = T6.loo_pseudo_radii(prb_cases)
     eps = min(T6.EPS_GRID, key=lambda e: abs(e - float(np.median([loo[s]["_global"] for s in loo]))))
@@ -129,8 +132,8 @@ def stratify_by_tag(prb_cases, mob_cases=None):
         err = haversine_error(T6.estimate(c, "L1", "b", loo, eps=eps), c["truth"])
         groups.setdefault(cls, []).append(err)
     print("\n" + "=" * 78)
-    print("PROBE-STRATIFIZIERUNG nach Anschluss-Klasse (Aggregation L1*b)")
-    print(f"  {'Klasse':22s} {'n':>4s} {'median':>7s} {'mean':>9s} {'tail%':>6s}")
+    print("PROBE STRATIFICATION by connection class (aggregation L1*b)")
+    print(f"  {'Class':22s} {'n':>4s} {'median':>7s} {'mean':>9s} {'tail%':>6s}")
     rows = []
 
     def emit(label, e):
@@ -143,13 +146,13 @@ def stratify_by_tag(prb_cases, mob_cases=None):
         if cls in groups:
             emit(cls, groups[cls])
     if "mobile" in groups:
-        emit("mobile (Sample)", groups["mobile"])
+        emit("mobile (sample)", groups["mobile"])
     if mob_cases:
-        emit("mobile (gezielt)", _agg_errors(mob_cases))
+        emit("mobile (targeted)", _agg_errors(mob_cases))
     pd.DataFrame(rows).to_csv(OUT / "probes_by_tag.csv", index=False)
     print(f"  CSV: {OUT}/probes_by_tag.csv")
-    print("  Hinweis: 'mobile' = RIPE-Tag (fest installierte 4G-Router, KEINE roamenden Handys);")
-    print("           Nabis 179-207 km gelten fuer Carrier-CGNAT-Mobilfunk -> hier strukturell nicht erfasst.")
+    print("  Note: 'mobile' = RIPE tag (permanently installed 4G routers, NOT roaming phones);")
+    print("        Nabi's 179-207 km apply to carrier-CGNAT cellular -> structurally not captured here.")
 
 
 def main():
@@ -157,12 +160,12 @@ def main():
     prb = cases_from("probes.csv", "observations_probes.csv")
     common = sorted(set(p["source"] for c in anc for p in c["provenance"])
                     & set(p["source"] for c in prb for p in c["provenance"]))
-    print(f"Gemeinsame Quellen ({len(common)}): {', '.join(common)}")
-    print(f"Anchors: {len(anc)} Faelle | Probes: {len(prb)} Faelle\n")
+    print(f"Common sources ({len(common)}): {', '.join(common)}")
+    print(f"Anchors: {len(anc)} cases | Probes: {len(prb)} cases\n")
 
-    # Metriken auf den VOLLEN Cases je Datensatz (Anchor-Aggregation = Headline aus
-    # der Hauptauswertung, inkl. ipapi_co-Resthits; Probes haben ohnehin kein ipapi_co). Die
-    # Einzelquellen-Zeilen werden auf die gemeinsamen acht Quellen gefiltert.
+    # Metrics on the FULL cases per dataset (anchor aggregation = headline
+    # configuration, incl. residual ipapi_co hits; probes have no ipapi_co anyway). The
+    # single-source rows are filtered to the eight common sources.
     (ar, am), (pr, pm) = metrics(anc, "anchors"), metrics(prb, "probes")
 
     df = pd.DataFrame(ar + pr)
@@ -170,7 +173,7 @@ def main():
 
     aggregators = ("AGG L1*b", "geom_median (L0)", "braetz")
     print("=" * 78)
-    print(f"GENAUIGKEIT je Quelle/Aggregator  (Einzelquellen: gemeinsame {len(common)})")
+    print(f"ACCURACY per source/aggregator  (single sources: the {len(common)} common ones)")
     print(f"{'':22s} {'Anchors med/mean/tail':>26s}   {'Probes med/mean/tail':>26s}")
     names = [r["name"] for r in ar if r["name"] in common or r["name"] in aggregators]
     ad = {r["name"]: r for r in ar}; pd_ = {r["name"]: r for r in pr}
@@ -178,19 +181,19 @@ def main():
         a, p = ad[nm], pd_.get(nm, {})
         print(f"  {nm:20s} {a['median']:6.1f} /{a['mean']:7.1f} /{a['tail']:5.1f}%   "
               f"{p.get('median',float('nan')):6.1f} /{p.get('mean',float('nan')):7.1f} /{p.get('tail',float('nan')):5.1f}%")
-    print("\nSchwierigkeits-Eimer (Anteil) und Default-Rate:")
+    print("\nDifficulty bucket (share) and default rate:")
     for m in (am, pm):
         tot = m["n_cases"]
         print(f"  {m['dataset']:8s} n={tot:4d}  easy {100*m['bucket_easy']/tot:4.1f}%  "
-              f"uneinig {100*m['bucket_uneinig']/tot:4.1f}%  hart {100*m['bucket_hart']/tot:4.1f}%  "
-              f"| Mehrheits-Default {m['majority_default_pct']:.1f}%  | Headline-eps {m['eps_headline']}")
+              f"disagree {100*m['bucket_disagree']/tot:4.1f}%  hard {100*m['bucket_hard']/tot:4.1f}%  "
+              f"| majority default {m['majority_default_pct']:.1f}%  | headline eps {m['eps_headline']}")
     print(f"\nCSV: {OUT}/probes_vs_anchors.csv")
 
     mob = None
     if (CACHE / "probes_mobile.csv").exists() and (CACHE / "observations_probes_mobile.csv").exists():
         mob = cases_from("probes_mobile.csv", "observations_probes_mobile.csv")
     stratify_by_tag(prb, mob)
-    print("\nHinweis: Probe-GT ist selbstgemeldet/gerundet -> direktionaler Stresstest, keine saubere Validierung.")
+    print("\nNote: probe GT is self-reported/rounded -> directional stress test, not a clean validation.")
 
 
 if __name__ == "__main__":

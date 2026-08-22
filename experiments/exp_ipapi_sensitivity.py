@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""ipapi.co-Sensitivität der Headline-Konfiguration (L1·b, eps=10, linear).
+"""ipapi.co sensitivity of the headline configuration (L1·b, eps=10, linear).
 
-Hintergrund (§3.1.3 / §4.3): Die 7 erfolgreichen ipapi.co-Beobachtungen
-verschieben den Headline-Mittelwert von 172,9 km (ohne sie) auf 183,4 km.
-Dieses Skript belegt den Mechanismus reproduzierbar:
-  (a) Gesamt-Kennzahlen mit/ohne ipapi.co (Median, Mittel, Tail),
-  (b) Anchor-genaue Differenzen der 7 betroffenen Anchors,
-  (c) Gewichtsmassen-Tabelle des gekippten Anchors:
-      4 von 6 effektiven Linien teilen denselben Ashburn-Default
-      (W_C = 47,5 % ohne ipapi); die ipapi-Antwort (6,8 % Gewichtsmasse) hebt
-      W_C auf 51,0 % -> gewichteter geometrischer Median kippt auf
-      den Default (Fehler 18,8 -> 11.354,5 km). KEIN Gewichts-Fallback:
-      ipapi erhaelt regulaeren Leave-one-out-Pseudo-Radius (27,9 km).
+Background: the 7 successful ipapi.co observations shift the headline mean
+from 172.9 km (without them) to 183.4 km. This script documents the
+mechanism reproducibly:
+  (a) overall metrics with/without ipapi.co (median, mean, tail),
+  (b) per-anchor differences of the 7 affected anchors,
+  (c) weight-mass table of the tipped anchor:
+      4 of 6 effective lines share the same default coordinate
+      (W_C = 47.5 % without ipapi); the ipapi answer (6.8 % weight mass)
+      lifts W_C to 51.0 % -> the weighted geometric median tips onto
+      the default (error 18.8 -> 11,354.5 km). NO weight fallback:
+      ipapi receives a regular leave-one-out pseudo-radius (27.9 km).
 
-Ergebnis: Tabellen (stdout) + eval/out/t6_ipapi_sensitivity.csv
+Output: tables (stdout) + eval/out/t6_ipapi_sensitivity.csv
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ from experiments.exp_t6_defaults import (                # noqa: E402
 
 OUT = Path("eval/out")
 OUT.mkdir(parents=True, exist_ok=True)
-EPS = 10  # Headline-Konfiguration (anchor_eps)
+EPS = 10  # headline configuration (anchor_eps)
 
 
 def headline_errors(cases):
@@ -61,17 +61,17 @@ def main():
     _, err_no = headline_errors(cases_no)
 
     rows = []
-    for tag, e in (("mit_ipapi", err_full), ("ohne_ipapi", err_no)):
-        rows.append({"zeile": tag, "anchor": "", **summarize(e)})
+    for tag, e in (("with_ipapi", err_full), ("without_ipapi", err_no)):
+        rows.append({"row": tag, "anchor": "", **summarize(e)})
     for ip in ipapi_ips:
-        rows.append({"zeile": "anchor_delta", "anchor": ip,
+        rows.append({"row": "anchor_delta", "anchor": ip,
                      "median_km": "", "mean_km": "",
                      "tail_pct": "",
-                     "err_mit": round(err_full[ip], 1),
-                     "err_ohne": round(err_no[ip], 1),
+                     "err_with": round(err_full[ip], 1),
+                     "err_without": round(err_no[ip], 1),
                      "delta_km": round(err_full[ip] - err_no[ip], 1)})
 
-    # Gewichtsmassen des Kipp-Anchors
+    # weight masses of the tipped anchor
     tipped = max(ipapi_ips, key=lambda ip: abs(err_full[ip] - err_no[ip]))
     c = next(c for c in cases if c["ip"] == tipped)
     lw = line_weights_for(c["provenance"], "L1")
@@ -86,24 +86,24 @@ def main():
     wc_no = sum(x[1] for x in w
                 if x[2] > 10_000 and x[0] != "ipapi_co") / tot_no
 
-    print(f"Kipp-Anchor: {tipped}")
-    print(f"{'Quelle':18s} {'Fehler_km':>10s} {'r_km':>7s} {'Anteil':>7s}")
+    print(f"Tipped anchor: {tipped}")
+    print(f"{'source':18s} {'error_km':>10s} {'r_km':>7s} {'share':>7s}")
     for src, wi, e, r in w:
         print(f"{src:18s} {e:10.1f} {r:7.1f} {100*wi/tot:6.1f}%")
-    print(f"\nW_C (Default-Seite) mit ipapi: {100*wc_with:.1f} %"
-          f"  |  ohne ipapi: {100*wc_no:.1f} %")
-    rows.append({"zeile": "gewichtsmasse_default", "anchor": tipped,
+    print(f"\nW_C (default side) with ipapi: {100*wc_with:.1f} %"
+          f"  |  without ipapi: {100*wc_no:.1f} %")
+    rows.append({"row": "weight_mass_default", "anchor": tipped,
                  "median_km": "", "mean_km": "", "tail_pct": "",
-                 "wc_mit_pct": round(100 * wc_with, 1),
-                 "wc_ohne_pct": round(100 * wc_no, 1)})
+                 "wc_with_pct": round(100 * wc_with, 1),
+                 "wc_without_pct": round(100 * wc_no, 1)})
 
     df = pd.DataFrame(rows)
     df.to_csv(OUT / "t6_ipapi_sensitivity.csv", index=False)
     print(f"\nCSV: {OUT}/t6_ipapi_sensitivity.csv")
-    for tag, e in (("mit ", err_full), ("ohne", err_no)):
+    for tag, e in (("with   ", err_full), ("without", err_no)):
         s = summarize(e)
-        print(f"{tag} ipapi: Median {s['median_km']:.2f}  "
-              f"Mittel {s['mean_km']:.1f}  Tail {s['tail_pct']:.1f} %")
+        print(f"{tag} ipapi: median {s['median_km']:.2f}  "
+              f"mean {s['mean_km']:.1f}  tail {s['tail_pct']:.1f} %")
 
 
 if __name__ == "__main__":

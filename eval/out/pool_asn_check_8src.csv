@@ -1,0 +1,6 @@
+quantity,point,ci_lo,ci_hi
+non_auto_geoip_median_km,6.553,5.798,7.419
+non_auto_geoip_tail_pct,15.225,12.293,18.801
+pooled_median_km,4.931,4.323,5.671
+delta_median_frozen_minus_fresh_km,0.217,0.116,0.38
+gap_autogeoip_minus_non_auto_geoip_median_km,-5.535,-6.366,-4.697

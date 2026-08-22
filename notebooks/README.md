@@ -1,22 +1,24 @@
 # notebooks/
 
-Interaktive **Darstellungs- und Explorationsschicht** — *nicht* der reproduzierbare
-Kern des Projekts.
+Interactive **presentation and exploration layer** — *not* the reproducible
+core of the project.
 
-## Rollenteilung (bewusst)
+## Division of roles (deliberate)
 
-- **Berechnung & reproduzierbare Pipeline** bleiben in `data/`, `estimators/`,
-  `eval/` und `experiments/` (reine `.py`-Module, getestet, diffbar, deterministisch
-  ausführbar). Das ist der bewertete „lauffähige Teil" und der forensisch saubere
-  Pfad — Notebooks sind wegen frei wählbarer Zellreihenfolge dafür ungeeignet.
-- **Notebooks importieren diese Module nur und visualisieren** die fertigen
-  Ergebnisse aus `eval/out/`. Hier wird **keine** Schätz-/Auswertungslogik
-  dupliziert; gehört etwas in die Pipeline, wandert es nach `eval/report.py`
-  bzw. `experiments/`.
+- **Computation & the reproducible pipeline** live in `data/`, `estimators/`,
+  `eval/` and `experiments/` (plain `.py` modules — tested, diffable,
+  deterministically executable). That is the runnable core and the forensically
+  clean path — notebooks are unsuitable for it because cells can be run in an
+  arbitrary order.
+- **Notebooks only import these modules and visualize** the finished results
+  from `eval/out/`. **No** estimation or evaluation logic is duplicated here;
+  anything that belongs in the pipeline goes into `eval/report.py` or
+  `experiments/`.
 
-## Reproduktion
+## Reproduction
 
-Erst die Pipeline laufen lassen (erzeugt die CSVs in `eval/out/`):
+Run the pipeline first (creates the CSVs in `eval/out/`; see
+`docs/experiments.md` for the full order):
 
 ```bash
 python experiments/exp_accuracy.py
@@ -24,5 +26,5 @@ python experiments/exp_contamination.py
 python experiments/exp_samplesize.py
 ```
 
-Dann `explore.ipynb` öffnen (Kernel = Projekt-`.venv`). „Restart & Run All"
-muss jederzeit ohne manuelle Zwischenschritte durchlaufen.
+Then open `explore.ipynb` (kernel = project `.venv`). "Restart & Run All"
+must run through at any time without manual intermediate steps.

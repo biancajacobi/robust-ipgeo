@@ -1,0 +1,9 @@
+population,config,median_km,mean_km,tail_pct,n,rfg_coverage_pct,bss_raw,bss_platt_oof,ece_raw,ece_platt_oof,missrate
+probes_pool,frozen,4.931424046478526,86.92268229757404,14.276079136690647,8896,97.7,,,,,
+probes_pool,fresh,4.714354685635286,84.91663270353479,13.882643884892087,8896,97.7,,,,,
+probes_pool,S_transfer,,,,8896,,0.156,0.177,0.029,0.016,0.143
+probes_pool,S_transfer_non-auto-geoip,,,,6903,,0.123,0.151,0.031,0.014,0.152
+probes_pool,S_transfer_auto-geoip,,,,1993,,0.294,0.329,0.051,0.026,0.11
+probes500_8src,frozen,5.6077664917156635,109.370158277078,15.0,500,100.0,,,,,
+probes500_8src,fresh,5.3590308162860305,101.8617096295731,14.000000000000002,500,100.0,,,,,
+probes500_8src,S_transfer,,,,500,,0.108,0.132,0.028,0.025,0.15

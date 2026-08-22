@@ -1,9 +1,0 @@
-reference,median_source_km,delta_km,ci_lo_km,ci_hi_km,bonf_ci_lo_km,bonf_ci_hi_km,n
-IP2Location LITE,3.44,0.69,0.37,1.19,0.23,1.43,1077
-ipinfo.io,5.26,-1.14,-1.53,-0.67,-1.7,-0.51,1077
-ipwho.is,5.22,-1.09,-1.36,-0.58,-1.57,-0.43,1077
-ip-api.com,6.18,-2.05,-2.99,-1.5,-3.36,-1.17,1077
-DB-IP Lite,7.0,-2.87,-3.86,-1.94,-4.36,-1.71,1077
-MaxMind GeoLite2 / geojs,14.48,-10.36,-13.4,-7.81,-16.84,-6.47,1076
-reallyfreegeoip.org,20.54,-16.41,-27.91,-11.29,-33.92,-9.9,1077
-naiv ungewichtet L0·a (Baseline),5.54,-1.42,-1.79,-0.95,-1.94,-0.73,1077

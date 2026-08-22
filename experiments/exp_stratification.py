@@ -1,14 +1,15 @@
-"""E4 — Stratifizierte Auswertung (FF: Wann/Wo trägt die Aggregation?).
+"""E4 — Stratified evaluation (RQ: when/where does the aggregation carry?).
 
-Keine neue Datenerhebung — Aufbereitung der bestehenden Fälle nach:
-  E4a Schwierigkeit:  easy / uneinig / hart (wie in T6) × Schätzer → Boxplot + Tabelle.
-  E4b Region:         Median-Fehler je Land (Top-N nach Anchor-Zahl) → zeigt geografische
-                      Variation und wo der robuste Schätzer trägt vs. scheitert.
+No new data collection — a re-cut of the existing cases by:
+  E4a difficulty:  easy / disagree / hard (as in T6) x estimator -> boxplot + table.
+  E4b region:      median error per country (top N by anchor count) -> shows
+                   geographic variation and where the robust estimator carries
+                   vs. fails.
 
-Schätzer: naiver Mittelwert, geom. Median (robuste Hauptlinie), Brätz (T5).
+Estimators: naive mean, geom. median (robust main line), Braetz (T5).
 
-Aufruf:  python experiments/exp_stratification.py
-Ergebnis: eval/out/e4_difficulty.{csv,png}, eval/out/e4_region.csv
+Usage:   python experiments/exp_stratification.py
+Output:  eval/out/e4_difficulty.{csv,png}, eval/out/e4_region.csv
 """
 
 from __future__ import annotations
@@ -29,15 +30,15 @@ from estimators.baselines import centroid, geometric_median  # noqa: E402
 from estimators import braetz                    # noqa: E402
 
 OUT = Path("eval/out"); OUT.mkdir(parents=True, exist_ok=True)
-ESTS = [("naiver Mittelwert", centroid, "#d62728"),
-        ("geom. Median", geometric_median, "#1f77b4"),
-        ("Brätz", braetz.estimate, "#9467bd")]
-BUCKETS = ["easy", "uneinig", "hart"]
+ESTS = [("naive mean", centroid, "#d62728"),
+        ("geometric median", geometric_median, "#1f77b4"),
+        ("Braetz", braetz.estimate, "#9467bd")]
+BUCKETS = ["easy", "disagree", "hard"]
 
 
 def bucket(case):
     e = [haversine_error((p["lat"], p["lon"]), case["truth"]) for p in case["provenance"]]
-    return "hart" if min(e) > 50 else "easy" if max(e) < 50 else "uneinig"
+    return "hard" if min(e) > 50 else "easy" if max(e) < 50 else "disagree"
 
 
 def main():
@@ -55,25 +56,25 @@ def main():
     import pandas as pd
     df = pd.DataFrame(rows)
 
-    # --- E4a: Schwierigkeit ---
+    # --- E4a: difficulty ---
     with open(OUT / "e4_difficulty.csv", "w", newline="") as fh:
         w = csv.writer(fh); w.writerow(["bucket", "n", "estimator", "median_km", "q1_km", "q3_km", "mean_km"])
-        for b in BUCKETS + ["gesamt"]:
-            sub = df if b == "gesamt" else df[df.bucket == b]
+        for b in BUCKETS + ["overall"]:
+            sub = df if b == "overall" else df[df.bucket == b]
             for name, _, _ in ESTS:
                 e = sub[name].dropna()
                 w.writerow([b, len(sub), name, f"{e.median():.1f}", f"{e.quantile(.25):.1f}",
                             f"{e.quantile(.75):.1f}", f"{e.mean():.1f}"])
 
-    print("E4a — Median-Fehler km [Q1–Q3] je Schwierigkeit × Schätzer")
-    print(f"{'Eimer':10s} {'n':>5s}  " + "  ".join(f"{n:>18s}" for n, _, _ in ESTS))
-    for b in BUCKETS + ["gesamt"]:
-        sub = df if b == "gesamt" else df[df.bucket == b]
+    print("E4a — median error km [Q1–Q3] per difficulty × estimator")
+    print(f"{'bucket':10s} {'n':>5s}  " + "  ".join(f"{n:>18s}" for n, _, _ in ESTS))
+    for b in BUCKETS + ["overall"]:
+        sub = df if b == "overall" else df[df.bucket == b]
         cells = [f"{sub[n].median():5.0f}[{sub[n].quantile(.25):4.0f}-{sub[n].quantile(.75):5.0f}]"
                  for n, _, _ in ESTS]
         print(f"{b:10s} {len(sub):5d}  " + "  ".join(f"{c:>18s}" for c in cells))
 
-    # Boxplot (log-y), je Eimer die 3 Schätzer nebeneinander
+    # Boxplot (log-y), the 3 estimators side by side per bucket
     fig, ax = plt.subplots(figsize=(9, 5.5))
     width, gap = 0.25, 1.0
     for j, (name, _, col) in enumerate(ESTS):
@@ -87,19 +88,19 @@ def main():
     ax.set_yscale("log")
     ax.set_xticks([i * gap for i in range(len(BUCKETS))],
                   [f"{b}\n(n={int((df.bucket==b).sum())})" for b in BUCKETS])
-    ax.set_ylabel("Fehler zur GT / km (log)")
-    ax.set_title(f"E4a — Fehler je Schwierigkeits-Eimer × Schätzer  (n={len(df)} Anchors)")
+    ax.set_ylabel("error to ground truth / km (log)")
+    ax.set_title(f"E4a — error per difficulty bucket × estimator  (n={len(df)} anchors)")
     ax.grid(True, axis="y", which="both", alpha=0.25); ax.legend()
     fig.tight_layout(); fig.savefig(OUT / "e4_difficulty.png", dpi=150); plt.close(fig)
 
-    # --- E4b: Region (Top-Länder nach Anchor-Zahl) ---
+    # --- E4b: region (top countries by anchor count) ---
     top = df.country.value_counts().head(15).index
     reg = (df[df.country.isin(top)].groupby("country")
-           .agg(n=("ip", "size"), geomed=("geom. Median", "median"),
-                braetz=("Brätz", "median"), naiv=("naiver Mittelwert", "median"))
+           .agg(n=("ip", "size"), geomed=("geometric median", "median"),
+                braetz=("Braetz", "median"), naive=("naive mean", "median"))
            .sort_values("n", ascending=False).round(1))
     reg.to_csv(OUT / "e4_region.csv")
-    print("\nE4b — Median-Fehler km je Land (Top 15 nach Anchor-Zahl)")
+    print("\nE4b — median error km per country (top 15 by anchor count)")
     print(reg.to_string())
     print(f"\nCSVs: {OUT}/e4_difficulty.csv, e4_region.csv   Plot: {OUT}/e4_difficulty.png")
 

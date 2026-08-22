@@ -1,16 +1,17 @@
-"""Quellen-(Un)Abhängigkeit: paarweise Übereinstimmung der Geo-Quellen.
+"""Source (in)dependence: pairwise agreement of the geo sources.
 
-Belegt empirisch, wie viele *effektive unabhängige Linien* hinter den nominell
-mehreren Quellen stehen (zentral für FF2/FF3: robuste Aggregation setzt
-unabhängige ehrliche Quellen voraus). Rechnet die paarweise Median-Distanz auf
-der **gemeinsamen Schnittmenge** der einbezogenen Quellen (gleiche IP-Basis für
-alle Paare → kein Teilmengen-Artefakt). Quellen mit zu geringer Abdeckung
-(z. B. rate-limitiertes ipapi_co) werden ausgeschlossen und benannt.
+Documents empirically how many *effective independent lines* stand behind the
+nominally multiple sources (central to RQ2/RQ3: robust aggregation presupposes
+independent honest sources). Computes the pairwise median distance on the
+**common intersection** of the included sources (same IP basis for all pairs →
+no subset artifact). Sources with too little coverage (e.g. rate-limited
+ipapi_co) are excluded and named.
 
-Output: eval/out/source_correlation.{csv,png} (Median-Distanz-Matrix + Heatmap)
-        + eval/out/source_family_drift.csv (Intra-Familien-Drift, §3.2.4:
-          geojs bit-identisch zu MaxMind; reallyfreegeoip gleiche Abstammung
-          mit abweichendem Datenstand — Richtung aus den Daten nicht bestimmbar).
+Output: eval/out/source_correlation.{csv,png} (median distance matrix + heatmap)
+        + eval/out/source_family_drift.csv (intra-family drift, see the
+          accompanying paper: geojs bit-identical to MaxMind; reallyfreegeoip
+          same ancestry with a diverging data snapshot — direction not
+          determinable from the data).
 
     python experiments/exp_source_correlation.py
 """
@@ -29,14 +30,14 @@ from data import store  # noqa: E402
 from eval import report  # noqa: E402
 from eval.metrics import haversine  # noqa: E402
 
-MIN_COVERAGE = 0.20  # Quelle muss für >= 20 % der IPs einen Erfolg liefern
+MIN_COVERAGE = 0.20  # source must deliver a success for >= 20% of the IPs
 FAMILY_REF = "maxmind_geolite2"
 FAMILY_OTHERS = ("geojs", "reallyfreegeoip")
 
 
 def _family_drift(pts, out_dir):
-    """Intra-Familien-Statistik: identisch-Quoten, Divergenz-Anteile und
-    Fehlervergleich auf dem divergenten Teil (>100 km) gegen die Ground Truth."""
+    """Intra-family statistics: identical rates, divergence shares and
+    error comparison on the divergent part (>100 km) against the ground truth."""
     import pandas as pd
     anchors = {a["ip"]: (float(a["lat"]), float(a["lon"]))
                for a in store.load_anchors_csv()
@@ -47,12 +48,12 @@ def _family_drift(pts, out_dir):
         d = np.array([haversine(*pts[FAMILY_REF][ip], *pts[other][ip])
                       for ip in ips])
         div = [ip for ip, x in zip(ips, d) if x > 100]
-        row = {"paar": f"{FAMILY_REF}~{other}", "n": len(ips),
-               "identisch_pct": round(100 * float((d < 0.01).mean()), 1),
-               "unter_0_1km_pct": round(100 * float((d < 0.1).mean()), 1),
-               "ueber_1km_pct": round(100 * float((d > 1).mean()), 1),
-               "ueber_100km_pct": round(100 * float((d > 100).mean()), 1),
-               "median_paardistanz_km": round(float(np.median(d)), 3)}
+        row = {"pair": f"{FAMILY_REF}~{other}", "n": len(ips),
+               "identical_pct": round(100 * float((d < 0.01).mean()), 1),
+               "under_0_1km_pct": round(100 * float((d < 0.1).mean()), 1),
+               "over_1km_pct": round(100 * float((d > 1).mean()), 1),
+               "over_100km_pct": round(100 * float((d > 100).mean()), 1),
+               "median_pair_distance_km": round(float(np.median(d)), 3)}
         if div:
             e_ref = np.array([haversine(*pts[FAMILY_REF][ip], *anchors[ip])
                               for ip in div])
@@ -60,16 +61,16 @@ def _family_drift(pts, out_dir):
                               for ip in div])
             row.update(div_err_median_maxmind_km=round(float(np.median(e_ref)), 1),
                        div_err_median_other_km=round(float(np.median(e_oth)), 1),
-                       div_other_schlechter_pct=round(100 * float((e_oth > e_ref).mean()), 0))
+                       div_other_worse_pct=round(100 * float((e_oth > e_ref).mean()), 0))
         rows.append(row)
-        print(f"{FAMILY_REF} ~ {other}: identisch {row['identisch_pct']} %  "
-              f">100 km {row['ueber_100km_pct']} %")
+        print(f"{FAMILY_REF} ~ {other}: identical {row['identical_pct']} %  "
+              f">100 km {row['over_100km_pct']} %")
     pd.DataFrame(rows).to_csv(out_dir / "source_family_drift.csv", index=False)
     print(f"CSV: {out_dir}/source_family_drift.csv")
 
 
 def _by_source(observations):
-    """{source: {ip: (lat, lon)}} für erfolgreiche Beobachtungen + lineage-Map."""
+    """{source: {ip: (lat, lon)}} for successful observations + lineage map."""
     pts: dict[str, dict] = {}
     lineage: dict[str, str] = {}
     for o in observations:
@@ -79,7 +80,7 @@ def _by_source(observations):
             lat, lon = float(o["lat"]), float(o["lon"])
         except (TypeError, ValueError):
             continue
-        if lat == 0.0 and lon == 0.0:  # "Null Island" = Unbekannt, nicht vergleichbar
+        if lat == 0.0 and lon == 0.0:  # "Null Island" = unknown, not comparable
             continue
         pts.setdefault(o["source"], {})[o["ip"]] = (lat, lon)
         lineage[o["source"]] = o.get("lineage", "unknown")
@@ -94,17 +95,17 @@ def run() -> None:
     included = sorted(s for s in pts if len(pts[s]) >= MIN_COVERAGE * n_ips)
     excluded = sorted(set(pts) - set(included))
     if len(included) < 2:
-        print("Zu wenige abgedeckte Quellen für eine Korrelationsmatrix.")
+        print("Too few covered sources for a correlation matrix.")
         return
 
     common = set.intersection(*(set(pts[s]) for s in included))
-    print(f"{n_ips} IPs gesamt | einbezogen: {', '.join(included)}")
+    print(f"{n_ips} IPs total | included: {', '.join(included)}")
     if excluded:
-        print(f"ausgeschlossen (<{MIN_COVERAGE:.0%} Abdeckung): "
+        print(f"excluded (<{MIN_COVERAGE:.0%} coverage): "
               + ", ".join(f"{s} ({len(pts[s])})" for s in excluded))
-    print(f"gemeinsame Schnittmenge: {len(common)} IPs\n")
+    print(f"common intersection: {len(common)} IPs\n")
 
-    # paarweise Median-Distanz auf der gemeinsamen Schnittmenge
+    # pairwise median distance on the common intersection
     import pandas as pd
     mat = pd.DataFrame(np.zeros((len(included), len(included))),
                        index=included, columns=included)
@@ -118,16 +119,16 @@ def run() -> None:
     _family_drift(pts, report.OUT_DIR)
     png_path = _heatmap(mat, included, lineage, len(common))
 
-    print("Paarweise Median-Distanz [km] (gemeinsame Schnittmenge):")
+    print("Pairwise median distance [km] (common intersection):")
     print(mat.round(1).to_string())
-    # effektive Linien: Quellen gleicher lineage zusammenfassen
+    # effective lines: merge sources of the same lineage
     lines: dict[str, list] = {}
     for s in included:
         lines.setdefault(lineage[s], []).append(s)
-    print("\nLinien (lineage -> Quellen):")
+    print("\nLines (lineage -> sources):")
     for lin, members in lines.items():
         print(f"  {lin:22} {', '.join(members)}")
-    print(f"\n=> {len(included)} Quellen, aber nur {len(lines)} deklarierte Linien.")
+    print(f"\n=> {len(included)} sources, but only {len(lines)} declared lines.")
     print(f"\nMatrix: {csv_path}\nHeatmap: {png_path}")
 
 
@@ -143,9 +144,9 @@ def _heatmap(mat, labels, lineage, n_common):
         for j in range(len(labels)):
             ax.text(j, i, f"{mat.iloc[i, j]:.0f}", ha="center", va="center",
                     color="white", fontsize=8)
-    fig.colorbar(im, ax=ax, label="Median-Distanz [km]")
-    ax.set_title(f"Quellen-Übereinstimmung (n={n_common} gemeinsame IPs)\n"
-                 "kleine Distanz = korreliert (nahe derselben Linie)")
+    fig.colorbar(im, ax=ax, label="median distance [km]")
+    ax.set_title(f"Source agreement (n={n_common} common IPs)\n"
+                 "small distance = correlated (close to the same line)")
     fig.tight_layout()
     path = report.OUT_DIR / "source_correlation.png"
     fig.savefig(path, dpi=130)
