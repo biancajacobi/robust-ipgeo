@@ -1,0 +1,3 @@
+measure,bss_global_base_rate,bss_foldwise_train_base_rate,base_rate_global
+S,0.2098,0.2098,0.1198
+predecessor_label,0.0681,0.0681,0.1198

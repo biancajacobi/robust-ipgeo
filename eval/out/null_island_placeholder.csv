@@ -1,0 +1,7 @@
+config,median_km,mean_km,tail_pct,s_bss_oof,n,max_km,n_gt_1km,s_with_median,s_without_median,n_s_lower_with,with_km,without_km
+with_placeholders,4.128,183.437,11.978,0.2098,,,,,,,,
+without_placeholders,4.1276,183.466,11.978,0.2095,,,,,,,,
+shift_affected_anchors,0.017,,,,10.0,0.765,,,,,,
+shift_other_anchors_via_loo_radius,,,,,1067.0,20.392,8.0,,,,,
+S_affected_anchors,,,,,10.0,,,0.833,0.833,6.0,,
+loo_radius_reallyfreegeoip,,,,,,,,,,,20.54,18.9

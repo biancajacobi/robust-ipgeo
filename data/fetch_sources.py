@@ -47,7 +47,7 @@ from data import centroids  # noqa: E402
 TIMEOUT = 15
 USER_AGENT = "robust-ipgeo/research (academic; contact via repo)"
 SOURCES_RAW = store.SOURCES_RAW_CSV   # dataset-aware (anchors -> sources_raw.jsonl)
-DB_DIR = store.BASE_DIR / "db"
+DB_DIR = store.DB_DIR   # data/db/ or GEOIP_DB_DIR (archived vintage)
 
 # Tokens for authenticated web sources (from .env; empty => source reports an error).
 IPINFO_TOKEN = store.load_env().get("IPINFO_TOKEN", "")
@@ -400,10 +400,18 @@ def main() -> None:
     ap.add_argument("--sources", default=",".join(DEFAULT_SOURCES),
                     help=f"comma list; known: {', '.join(SOURCES)}")
     ap.add_argument("--refresh", action="store_true", help="ignore the cache and fetch anew")
+    ap.add_argument("--retry-failed", action="store_true",
+                    help="also re-fetch entries whose source did not answer successfully (e.g. a rate-limit refusal with a body); successful answers stay cached")
+    ap.add_argument("--free-ipwhois", action="store_true",
+                    help="query ipwho_is via the free ipwho.is endpoint even if a Pro key is set (e.g. Pro subscription expired; same data base, line unchanged)")
     ap.add_argument("--reindex", action="store_true",
                     help="do not fetch: rebuild observations.csv and register the current "
                          "cache as an immutable evidence artifact in the ledger")
     args = ap.parse_args()
+
+    if args.free_ipwhois:
+        SOURCES["ipwho_is"]["url"] = "https://ipwho.is/{ip}"
+        SOURCES["ipwho_is"]["min_interval"] = 0.5
 
     sources = [s.strip() for s in args.sources.split(",") if s.strip()]
     unknown = [s for s in sources if s not in SOURCES]
@@ -443,7 +451,10 @@ def main() -> None:
         print(f"Collecting {len(sources)} source(s) × {len(ips)} IP(s) … (cache: {len(cache)} entries)")
         for i, ip in enumerate(ips, 1):
             for source in sources:
-                if args.refresh or not _cache_valid(cache.get((source, ip)), source):
+                prev = cache.get((source, ip))
+                if (args.refresh or not _cache_valid(prev, source)
+                        or (args.retry_failed
+                            and observation_from_raw(prev)["status"] != "success")):
                     entry = query_source(source, ip, session=session)
                     append_raw_cache(entry)
                     cache[(source, ip)] = entry

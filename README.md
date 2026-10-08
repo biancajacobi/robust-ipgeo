@@ -43,7 +43,7 @@ eval/out/     result tables (CSV) and figures (PNG) — anchors, plus the
 eval/out_probes/  result tables/figures — probe stress test
 eval/out_<ds>/    full suite dashboards per dataset (reproducible via
                   GEOIP_DATASET=<ds> experiments/run_probes_suite.py)
-experiments/  studies T1–T9 + RIPE-Atlas-probe comparison
+experiments/  studies T1–T10 + RIPE-Atlas-probe comparison
 data/         data acquisition (RIPE Atlas, geolocation sources), default detection, provenance store
 maltego/      local Maltego transforms (consensus + S per IP) + lineage checker
 tests/        unit tests (46, pytest)
@@ -189,3 +189,11 @@ Code: MIT (see [`LICENSE`](LICENSE)). Data are derived from RIPE Atlas and subje
 RIPE Atlas terms of use; the Giga-based result tables are derived from data made
 available by the Giga project under the Open Database License (ODbL) — source: Giga
 (UNICEF) and contributors.
+
+## Citation / archived version
+
+Every tagged release of this repository is archived on Zenodo. The concept DOI
+[doi:10.5281/zenodo.21478389](https://doi.org/10.5281/zenodo.21478389) always resolves
+to the latest version; the v2.0.0 snapshot (August 2026) is
+[doi:10.5281/zenodo.22057779](https://doi.org/10.5281/zenodo.22057779), and the version
+DOI of the current release is listed on the Zenodo record.

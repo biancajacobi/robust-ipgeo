@@ -1,0 +1,31 @@
+section,candidate,metric,value,extra
+anchors_oof,R0 QW multi (ref. R1),bss_mean5,0.356,"[+0.354,+0.360] AP=0.632 k=4"
+anchors_oof,R1 QW+in50 (winner R2),bss_mean5,0.599,"[+0.587,+0.605] AP=0.813 k=13"
+anchors_oof,R2 QW+declared,bss_mean5,0.352,"[+0.348,+0.355] AP=0.610 k=11"
+anchors_oof,R3 QW+in50+declared,bss_mean5,0.584,"[+0.572,+0.594] AP=0.816 k=20"
+anchors_oof,R4 everything (+dists),bss_mean5,0.58,"[+0.571,+0.589] AP=0.821 k=26"
+anchors_oof,"R5 = R3, ridge tuned",bss_mean5,0.586,"[+0.575,+0.596] AP=0.814 k=20  lambda~10"
+anchors_oof,R6 = R5 + interactions,bss_mean5,0.587,"[+0.577,+0.593] AP=0.819 k=48  lambda~10"
+anchors_oof,R7 QW+in25/50/100,bss_mean5,0.625,"[+0.616,+0.632] AP=0.834 k=31  lambda~10"
+anchors_oof,R8 QW+dist per source,bss_mean5,0.599,"[+0.592,+0.607] AP=0.822 k=13  lambda~10"
+anchors_oof,R9 QW+in50+dist,bss_mean5,0.597,"[+0.588,+0.603] AP=0.825 k=22  lambda~10"
+anchors_oof,R10 in-profile+dist,bss_mean5,0.62,"[+0.611,+0.626] AP=0.825 k=40  lambda~10"
+tau_grid,R7 QW+in25/50/100,bss@tau50,0.625,
+tau_grid,R7 QW+in25/50/100,bss@tau100,0.632,
+tau_grid,R7 QW+in25/50/100,bss@tau200,0.581,
+transfer_probes,R0 QW multi,bss,0.233,roh=+0.206 intern=+0.218
+transfer_probes,R1 QW+in50,bss,0.27,roh=+0.240 intern=+0.331
+transfer_probes,R7 QW+in25/50/100,bss,0.281,roh=+0.254 intern=+0.352
+transfer_probes_holdout,R0 QW multi,bss,0.227,roh=+0.198 intern=+0.215
+transfer_probes_holdout,R1 QW+in50,bss,0.282,roh=+0.267 intern=+0.253
+transfer_probes_holdout,R7 QW+in25/50/100,bss,0.315,roh=+0.306 intern=+0.293
+transfer_probes_mobile,R0 QW multi,bss,0.168,roh=+0.125 intern=+0.149
+transfer_probes_mobile,R1 QW+in50,bss,0.147,roh=+0.100 intern=-0.144
+transfer_probes_mobile,R7 QW+in25/50/100,bss,0.177,roh=+0.149 intern=+0.151
+transfer_probes_mobile_ext,R0 QW multi,bss,0.164,roh=+0.050 intern=+0.148
+transfer_probes_mobile_ext,R1 QW+in50,bss,0.123,roh=-0.035 intern=+0.077
+transfer_probes_mobile_ext,R7 QW+in25/50/100,bss,0.137,roh=+0.002 intern=+0.150
+transfer_probes_mobile_extq,R0 QW multi,bss,0.17,roh=+0.071 intern=+0.131
+transfer_probes_mobile_extq,R1 QW+in50,bss,0.128,roh=-0.015 intern=+0.051
+transfer_probes_mobile_extq,R7 QW+in25/50/100,bss,0.145,roh=+0.023 intern=+0.137
+nested,nested selection,bss,0.608,4x R7 QW+in25/50/100; 3x R8 QW+dist per source; 3x R1 QW+in50 (winner R2)

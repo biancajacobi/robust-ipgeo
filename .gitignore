@@ -22,9 +22,17 @@ data/cache/sources_raw*.jsonl
 # Raw Giga API pages (unpseudonymized school IPs — never commit)
 data/cache/giga_measurements_raw*.jsonl
 
-# Regenerated per-dataset suite outputs and result figures (per-case tables stay local)
-eval/out_*/
-eval/out/*.png
+# RIR delegation snapshots, ~50 MB per date, fetched on demand by maltego/registry.py
+data/cache/rir/
+
+# RDAP per-IP cache of data/fetch_rdap_country.py (carries the queried IPs — never commit)
+data/cache/rdap_country_cache.jsonl
+
+# Per-dataset suite outputs: per-case tables carry IPs and stay local; the two IP-free
+# probe summaries used by the dashboard are tracked. Result figures are tracked.
+eval/out_*/*
+!eval/out_probes/probes_by_tag.csv
+!eval/out_probes/probes_vs_anchors.csv
 
 # Result figures/archives are regenerated; CSV result tables ARE tracked
 *.zip

@@ -1,0 +1,12 @@
+population,estimator,n,tau_km,city_miss_n,city_miss_pct,miss_with_registry_country_wrong_n,miss_with_registry_country_wrong_pct_of_misses,flag_n,p_miss_flag_pct,p_miss_noflag_pct,risk_ratio,rr_iid_lo,rr_iid_hi,p_miss_lowmass_pct,p_miss_highmass_pct,gate_ratio,quiet_n,quiet_miss_pct
+anchors,registry_rdap,1077,100.0,129,11.98,30,23.3,78,8.97,12.21,0.735,0.253,1.343,52.38,10.34,5.067,971,10.09
+anchors,registry_delegated,1077,100.0,129,11.98,41,31.8,217,9.22,12.67,0.727,0.433,1.099,52.38,10.34,5.067,834,10.31
+probes,registry_rdap,500,100.0,75,15.0,11,14.7,30,20.0,14.68,1.362,0.435,2.533,43.75,13.03,3.357,465,13.76
+probes,registry_delegated,500,100.0,75,15.0,11,14.7,63,19.05,14.42,1.321,0.657,2.157,43.75,13.03,3.357,435,14.02
+probes_holdout,registry_rdap,399,100.0,59,14.79,3,5.1,24,16.67,14.67,1.136,0.244,2.364,50.0,12.53,3.989,374,14.44
+probes_holdout,registry_delegated,399,100.0,59,14.79,7,11.9,54,14.81,14.78,1.002,0.394,1.82,50.0,12.53,3.989,344,14.53
+probes_mobile_ext,registry_rdap,178,100.0,57,32.02,0,0.0,0,,32.02,,,,71.43,26.75,2.67,178,32.02
+probes_mobile_ext,registry_delegated,178,100.0,57,32.02,2,3.5,5,40.0,31.79,1.258,0.0,3.125,71.43,26.75,2.67,173,31.79
+probes_pool,registry_rdap,8896,100.0,1386,15.58,93,6.7,419,13.13,15.7,0.836,0.632,1.056,56.66,11.54,4.908,8417,15.17
+probes_pool,registry_delegated,8896,100.0,1386,15.58,170,12.3,1102,14.43,15.74,0.916,0.783,1.062,56.66,11.54,4.908,7754,15.37
+giga,registry_delegated,2127,100.0,1168,54.91,10,0.9,21,47.62,54.99,0.866,0.476,1.27,82.28,52.72,1.561,2106,54.99

@@ -1,0 +1,6 @@
+section,variant,n,metric,value,extra
+flag_quality,ip_api_mobile,1074,precision_recall,0.922,recall=0.500 tp=83 flagged=90 cellular=166
+routing,one calibration,1074,bss_platt,0.263,ECE=0.029 operational number without type knowledge
+routing,ip-api flag routing,1074,bss_platt,0.287,ECE=0.020 base rate flagged 0.444 vs 0.153
+routing,oracle (RIPE tag),1074,bss_platt,0.28,ECE=0.020 NOT available in operation
+bootstrap,flag_vs_one,1074,delta_bss,0.0239,"ci=[+0.0005,+0.0480] frac_pos=0.977 B=10000"

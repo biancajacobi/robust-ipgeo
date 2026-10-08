@@ -43,7 +43,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from data import store  # noqa: E402
 
-DB_DIR = store.BASE_DIR / "db"
+DB_DIR = store.DB_DIR   # data/db/ or GEOIP_DB_DIR (archived vintage)
 TIMEOUT = 120
 USER_AGENT = "robust-ipgeo/research (academic; contact via repo)"
 

@@ -31,6 +31,13 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 CACHE_DIR = BASE_DIR / "cache"
 RAW_DIR = CACHE_DIR / "raw"
+# Build directory of the local LITE databases. Default data/db/ (the builds
+# pulled in June 2026, hash-pinned in the ledger). GEOIP_DB_DIR points to a
+# different archive directory (e.g. data/db_2026-10/) so that a later build
+# vintage can be kept and queried side by side without overwriting the old one
+# (temporal drift of the offline sources, experiments/exp_temporal_drift.py).
+DB_DIR = (Path(os.environ["GEOIP_DB_DIR"]).resolve() if os.environ.get("GEOIP_DB_DIR")
+          else BASE_DIR / "db")
 
 # Dataset switch: allows a separate run (e.g. RIPE Atlas probes) against
 # its own cache/ledger files without touching the anchor artifacts.

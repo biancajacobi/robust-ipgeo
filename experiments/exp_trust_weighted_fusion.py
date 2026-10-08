@@ -229,7 +229,7 @@ def main() -> None:
     print("=" * 78)
     for name, e in [("L1*b", da), ("Trust-Vote", dt_), ("Majority-Vote", dc)]:
         m = _stats(e)
-        print(f"  {name:14s}: Median {m[0]:5.1f} | Mittel {m[1]:6.1f} | "
+        print(f"  {name:14s}: Median {m[0]:5.1f} | mean {m[1]:6.1f} | "
               f"Tail>100 {m[2]:4.1f}%")
     res = _paired(da, dt_, asn)
     print(f"\n  Paired Bootstrap (B={B:,}, seed={SEED}) | "
@@ -259,7 +259,7 @@ def main() -> None:
         print("=" * 78)
         for name, e in [("L1*b (dort)", e_agg), ("Trust-Vote", e_twf)]:
             m = _stats(e)
-            print(f"  {name:14s}: Median {m[0]:5.1f} | Mittel {m[1]:6.1f} | "
+            print(f"  {name:14s}: Median {m[0]:5.1f} | mean {m[1]:6.1f} | "
                   f"Tail>100 {m[2]:4.1f}%")
         p_res = _paired(e_agg, e_twf, p_asn)
         print(f"\n  Paired Bootstrap | Δ = L1*b − Trust-Vote (negativ = L1*b besser)")

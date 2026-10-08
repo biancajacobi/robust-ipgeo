@@ -1,0 +1,43 @@
+section,reference,scheme,n,n_clusters,delta,ci_lo,ci_hi,sig,bonf_lo,bonf_hi,bonf_sig,frac_gt0
+t1_delta_median,IP2Location LITE,iid,1077,1077,0.6877,0.3691,1.1858,True,0.2338,1.4302,True,
+t1_delta_median,IP2Location LITE,cluster_asn,1077,805,0.6877,0.3264,1.264,True,0.1908,1.6305,True,1.0
+t1_delta_median,IP2Location LITE,cluster_land,1077,112,0.6877,0.2106,1.5245,True,-0.0016,1.992,False,0.997
+t1_delta_median,ipinfo.io,iid,1077,1077,-1.136,-1.5268,-0.6688,True,-1.7034,-0.5095,True,
+t1_delta_median,ipinfo.io,cluster_asn,1077,805,-1.136,-1.534,-0.6317,True,-1.7159,-0.4116,True,0.0
+t1_delta_median,ipinfo.io,cluster_land,1077,112,-1.136,-1.5237,-0.5064,True,-1.7055,-0.2231,True,0.0
+t1_delta_median,ipwho.is,iid,1077,1077,-1.0876,-1.3605,-0.5801,True,-1.569,-0.4255,True,
+t1_delta_median,ipwho.is,cluster_asn,1077,805,-1.0876,-1.3492,-0.5479,True,-1.5765,-0.3597,True,0.0
+t1_delta_median,ipwho.is,cluster_land,1077,112,-1.0876,-1.3728,-0.5119,True,-1.6479,-0.259,True,0.0
+t1_delta_median,ip-api.com,iid,1077,1077,-2.0489,-2.9866,-1.5028,True,-3.3603,-1.1693,True,
+t1_delta_median,ip-api.com,cluster_asn,1077,805,-2.0489,-3.1078,-1.2776,True,-3.5229,-0.9848,True,0.0
+t1_delta_median,ip-api.com,cluster_land,1077,112,-2.0489,-2.9576,-1.2949,True,-3.3553,-0.9626,True,0.0
+t1_delta_median,DB-IP Lite,iid,1077,1077,-2.8747,-3.8642,-1.9373,True,-4.3556,-1.7102,True,
+t1_delta_median,DB-IP Lite,cluster_asn,1077,805,-2.8747,-3.9465,-1.8296,True,-4.6218,-1.4068,True,0.0
+t1_delta_median,DB-IP Lite,cluster_land,1077,112,-2.8747,-4.0336,-1.823,True,-4.949,-1.4987,True,0.0
+t1_delta_median,MaxMind GeoLite2 / geojs,iid,1076,1076,-10.3552,-13.3968,-7.8149,True,-16.8356,-6.4743,True,
+t1_delta_median,MaxMind GeoLite2 / geojs,cluster_asn,1076,804,-10.3552,-18.6776,-6.4277,True,-27.5109,-5.6014,True,0.0
+t1_delta_median,MaxMind GeoLite2 / geojs,cluster_land,1076,112,-10.3552,-15.2412,-6.53,True,-21.0501,-5.462,True,0.0
+t1_delta_median,reallyfreegeoip.org,iid,1077,1077,-16.4131,-27.9055,-11.2858,True,-33.924,-9.9011,True,
+t1_delta_median,reallyfreegeoip.org,cluster_asn,1077,805,-16.4131,-34.8165,-9.8391,True,-41.0988,-8.4542,True,0.0
+t1_delta_median,reallyfreegeoip.org,cluster_land,1077,112,-16.4131,-34.5634,-8.9725,True,-42.4547,-7.4052,True,0.0
+t1_delta_median,naive unweighted L0*a (baseline),iid,1077,1077,-1.416,-1.7856,-0.9538,True,-1.9418,-0.7264,True,
+t1_delta_median,naive unweighted L0*a (baseline),cluster_asn,1077,805,-1.416,-1.8274,-0.8193,True,-1.9962,-0.586,True,0.0
+t1_delta_median,naive unweighted L0*a (baseline),cluster_land,1077,112,-1.416,-1.7208,-0.8425,True,-1.8803,-0.6353,True,0.0
+t1_meantail,IP2Location LITE / mean [km],iid,1077,1077,19.6409,-42.5412,81.3205,False,,,,
+t1_meantail,IP2Location LITE / mean [km],cluster_asn,1077,805,19.6409,-61.8376,107.1474,False,,,,0.667
+t1_meantail,IP2Location LITE / mean [km],cluster_land,1077,112,19.6409,-34.2632,93.9068,False,,,,0.733
+t1_meantail,IP2Location LITE / tail rate [pp],iid,1077,1077,1.9499,0.0,3.8997,False,,,,
+t1_meantail,IP2Location LITE / tail rate [pp],cluster_asn,1077,805,1.9499,-0.1842,4.1667,False,,,,0.959
+t1_meantail,IP2Location LITE / tail rate [pp],cluster_land,1077,112,1.9499,0.0879,4.2424,True,,,,0.976
+t1_meantail,ipinfo.io / mean [km],iid,1077,1077,96.8264,43.7453,156.7765,True,,,,
+t1_meantail,ipinfo.io / mean [km],cluster_asn,1077,805,96.8264,28.9178,181.178,True,,,,0.999
+t1_meantail,ipinfo.io / mean [km],cluster_land,1077,112,96.8264,27.5063,168.2481,True,,,,0.997
+t1_meantail,ipinfo.io / tail rate [pp],iid,1077,1077,5.4782,3.6212,7.428,True,,,,
+t1_meantail,ipinfo.io / tail rate [pp],cluster_asn,1077,805,5.4782,3.2474,7.768,True,,,,1.0
+t1_meantail,ipinfo.io / tail rate [pp],cluster_land,1077,112,5.4782,3.4738,7.2553,True,,,,1.0
+dbss_s_vs_label,S - (med+hub),iid,1077,1077,0.1411,0.0728,0.2011,True,,,,1.0
+dbss_s_vs_label,S - (med+hub),cluster_asn,1077,805,0.1411,0.0806,0.2017,True,,,,1.0
+dbss_s_vs_label,S - (med+hub),cluster_land,1077,112,0.1411,0.0849,0.2032,True,,,,1.0
+dbss_routing,flag routing - single calib.,iid,1074,1074,0.0239,0.0005,0.048,True,,,,0.977
+dbss_routing,flag routing - single calib.,cluster_asn,1074,636,0.0239,-0.0026,0.0533,False,,,,0.959
+dbss_routing,flag routing - single calib.,cluster_land,1074,94,0.0239,0.0005,0.046,True,,,,0.977

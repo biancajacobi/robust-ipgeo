@@ -1,0 +1,7 @@
+section,cat,n,base_rate,metric,value,extra
+pooled,ALLE,1074,0.178,bss_raw,0.229,
+pooled,ALLE,1074,0.178,bss_platt,0.263,ECE=0.029
+by_category,cellular,166,0.343,bss_vs_pooled,-0.44,brier=0.2105 share_of_error=0.302 bss_vs_own=+0.066 bss_own_cal=+0.134
+by_category,datacentre,77,0.104,bss_vs_pooled,0.542,brier=0.0669 share_of_error=0.045 bss_vs_own=+0.281 bss_own_cal=+0.267
+by_category,home/nat,286,0.14,bss_vs_pooled,0.289,brier=0.1039 share_of_error=0.257 bss_vs_own=+0.136 bss_own_cal=+0.148
+by_category,other,545,0.158,bss_vs_pooled,0.424,brier=0.0843 share_of_error=0.397 bss_vs_own=+0.366 bss_own_cal=+0.371

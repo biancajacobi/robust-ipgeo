@@ -1,4 +1,10 @@
-"""Concentration-measure selection, fully OUT-OF-FOLD: dispersion vs. concentration measures.
+"""Concentration-measure selection, calibration and measure choice OUT-OF-FOLD: dispersion vs. concentration measures.
+
+Scope of the out-of-fold protocol: logit fit, standardization and prediction are
+strictly fold-separated. The LOO pseudo-radii of the sources (feature input), by
+contrast, are computed once on the whole anchor corpus (leave-one-anchor-out per
+IP), i.e. before the folds are formed; the strictly fold-isolated control is
+exp_crossfit_radii.py (S: +0.210 -> +0.214).
 
 Complements exp_spread_measure.py (which only computes in-sample AP) with the
 honest out-of-fold evaluation using the same 10-fold stratified logic as
@@ -129,12 +135,21 @@ def bss(ph, y):
 
 
 def avg_prec(ph, y):
-    o = np.argsort(-ph)
-    yy = y[o]
-    tp = np.cumsum(yy); fp = np.cumsum(1 - yy)
-    P = tp / (tp + fp)
-    R = np.concatenate([[0.0], tp / yy.sum()])
-    return float(np.sum((R[1:] - R[:-1]) * P))
+    """Average precision, tie-aware: every distinct forecast value is one threshold
+    (block); precision/recall are evaluated at the block end (convention of
+    sklearn.average_precision_score). S has few distinct values; sorting per
+    observation made the AP depend on the order within ties (anchors:
+    0.416-0.434 instead of 0.424)."""
+    y = np.asarray(y, float); ph = np.asarray(ph, float)
+    npos = y.sum()
+    tp = fp = 0.0; ap = 0.0; r_prev = 0.0
+    for v in np.unique(ph)[::-1]:
+        m = ph == v
+        tp += float(y[m].sum()); fp += float((1 - y[m]).sum())
+        r = tp / npos
+        ap += (r - r_prev) * tp / (tp + fp)
+        r_prev = r
+    return float(ap)
 
 
 def ece(ph, y, nb=5):

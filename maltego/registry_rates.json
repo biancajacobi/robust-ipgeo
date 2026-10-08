@@ -1,0 +1,166 @@
+{
+  "_meta": {
+    "description": "Frozen country-error rates of the aggregation (core vote L1·b) per cell registry flag x S gate for live operation of the batch tool and the transform. flag = registry country != core vote; lowmass = core mass < s_gate. p_country_miss of a cell = share of wrong country votes in that cell on the reference population. Level 'whois' (RDAP, most specific object) is the primary flag, 'delegation' (RIR delegation file) the offline fallback and the only datable level.",
+    "note_floor": "The floor (vote follows the registration, both wrong) is by construction invisible to flag AND gate; it is the lower bound of the country error that no consensus or registry signal indicates.",
+    "note_population": "Reference population is the 8,896-address probe pool (RIPE Atlas probes, T8), not the anchors: operational IPs resemble probes; on the hosting-heavy anchors the flag carries only weakly (see contrast_anchors). School IPs of the giga population were not queried via whois.",
+    "note_cells": "The cell flag & lowmass is small (whois n=20); its rate is an order-of-magnitude hint, not a precise measure. For calibration, the rows p_miss_flag / p_miss_noflag (lift, with CI) are the robust statement.",
+    "generated_with": "maltego/make_registry_rates.py",
+    "source": "eval/out/registry_country.csv (experiments/exp_registry_country.py, aggregated, IP-free)",
+    "data_state": "probes_pool n=8896, coding state, delegation as of 20260820, RDAP cache 2026-09-27, frozen 2026-09-27",
+    "contrast_anchors": {
+      "whois": {
+        "n": 1077,
+        "flag_n": 78,
+        "risk_ratio": 2.29,
+        "rr_ci95_iid": [
+          0.51,
+          5.01
+        ],
+        "rr_ci95_asn": [
+          0.41,
+          6.01
+        ]
+      },
+      "delegation": {
+        "n": 1077,
+        "flag_n": 217,
+        "risk_ratio": 1.07,
+        "rr_ci95_iid": [
+          0.35,
+          2.23
+        ],
+        "rr_ci95_asn": [
+          0.3,
+          2.35
+        ]
+      }
+    }
+  },
+  "population": "probes_pool",
+  "coding": "state",
+  "s_gate": 0.5,
+  "r_core_km": 50.0,
+  "level_priority": [
+    "whois",
+    "delegation"
+  ],
+  "gate_only": {
+    "rate_pct": 8.95,
+    "recall_pct": 14.9,
+    "precision_pct": 1.8
+  },
+  "levels": {
+    "whois": {
+      "estimator": "registry_rdap",
+      "snapshot": "rdap_cache",
+      "n": 8896,
+      "registry_hit_pct": 94.82,
+      "agg_hit_pct": 98.94,
+      "no_state_n": 17,
+      "flag": {
+        "rate_pct": 4.71,
+        "flag_n": 419,
+        "recall_pct": 36.2,
+        "precision_pct": 8.1
+      },
+      "floor": {
+        "agg_miss_n": 94,
+        "registry_following_n": 60,
+        "registry_following_pct_of_n": 0.674,
+        "dev_registry_wrong_n": 16,
+        "dev_registry_right_n": 18
+      },
+      "lift": {
+        "p_miss_flag_pct": 8.115,
+        "p_miss_noflag_pct": 0.708,
+        "risk_ratio": 11.46,
+        "rr_ci95_iid": [
+          7.45,
+          17.14
+        ],
+        "rr_ci95_asn": [
+          6.07,
+          20.68
+        ]
+      },
+      "cells": {
+        "flag_lowmass": {
+          "n": 20,
+          "miss_pct": 20.0,
+          "p_country_miss": 0.2
+        },
+        "flag_highmass": {
+          "n": 399,
+          "miss_pct": 7.519,
+          "p_country_miss": 0.07519
+        },
+        "noflag_lowmass": {
+          "n": 776,
+          "miss_pct": 1.289,
+          "p_country_miss": 0.01289
+        },
+        "noflag_highmass": {
+          "n": 7701,
+          "miss_pct": 0.649,
+          "p_country_miss": 0.00649
+        }
+      }
+    },
+    "delegation": {
+      "estimator": "registry_delegated",
+      "snapshot": "20260820",
+      "n": 8896,
+      "registry_hit_pct": 87.47,
+      "agg_hit_pct": 98.94,
+      "no_state_n": 0,
+      "flag": {
+        "rate_pct": 12.39,
+        "flag_n": 1102,
+        "recall_pct": 57.4,
+        "precision_pct": 4.9
+      },
+      "floor": {
+        "agg_miss_n": 94,
+        "registry_following_n": 40,
+        "registry_following_pct_of_n": 0.45,
+        "dev_registry_wrong_n": 27,
+        "dev_registry_right_n": 27
+      },
+      "lift": {
+        "p_miss_flag_pct": 4.9,
+        "p_miss_noflag_pct": 0.513,
+        "risk_ratio": 9.55,
+        "rr_ci95_iid": [
+          6.42,
+          14.48
+        ],
+        "rr_ci95_asn": [
+          5.61,
+          16.5
+        ]
+      },
+      "cells": {
+        "flag_lowmass": {
+          "n": 31,
+          "miss_pct": 22.581,
+          "p_country_miss": 0.22581
+        },
+        "flag_highmass": {
+          "n": 1071,
+          "miss_pct": 4.388,
+          "p_country_miss": 0.04388
+        },
+        "noflag_lowmass": {
+          "n": 765,
+          "miss_pct": 0.915,
+          "p_country_miss": 0.00915
+        },
+        "noflag_highmass": {
+          "n": 7029,
+          "miss_pct": 0.469,
+          "p_country_miss": 0.00469
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+country,n,median_km,mean_km,tail_gt100km_pct,europe
+US,158,3.8,211.1,12.0,False
+DE,119,3.7,135.4,10.1,True
+NL,63,3.9,29.9,6.3,True
+FR,46,6.3,185.1,13.0,True
+GB,40,11.8,394.1,20.0,True
+CH,33,3.4,26.1,9.1,True
+other (<30),618,4.4,195.9,12.5,
+[Europe],558,3.9,136.8,11.5,
+[non-Europe],519,4.6,233.6,12.5,

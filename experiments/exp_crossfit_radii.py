@@ -10,10 +10,11 @@ weight construction via the source median (1 of ~1,077 values per source —
 numerically expected to be tiny, but protocol-wise real).
 
 This script runs both arms with IDENTICAL fit code, so the difference is
-attributable solely to the cross-fitting:
-
-  Arm A (status quo):    track records global (reimplementation; must
-                        reproduce the published numbers +0.210 / +0.625)
+attributable solely to the cross-fitting:  Arm A (status quo):    track records global (reimplementation with the
+                        unregularized _fit: reproduces +0.210 for S exactly;
+                        for R7 the fit without ridge gives +0.595 instead of
+                        the published, ridge-regularized +0.625 -- the arm
+                        comparison stays like-for-like)
   Arm B (fold-isolated): per outer fold, loo_pseudo_radii are computed ONLY
                         on the training anchors; test IPs receive the _global
                         fallback of the training set (deployment-realistic,

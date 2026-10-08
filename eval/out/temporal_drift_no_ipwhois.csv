@@ -1,0 +1,10 @@
+population,n,n_any_both,n_then,n_now,n_same_ip,n_same_ip_and_coord,n_only_then,n_only_now,n_coord_changed,eps_then_km,eps_now_km,portfolio,dropped_sources,config,median_km,mittel_km,tail_pct,d_median_km,d_median_lo,d_median_hi,d_tail_pp,d_tail_lo,d_tail_hi,hit_to_miss_n,miss_to_hit_n,miss_both_n,est_identical_pct,est_moved_gt1km_pct,est_moved_gt100km_pct,est_dist_median_km,country_vote_changed_pct,country_vote_changed_n,country_hit_then_pct,country_hit_now_pct,n_low,miss_low_pct,n_high,miss_high_pct,bss_then_oof,ece_then_oof,bss_now_frozen,ece_now_frozen,bss_now_oof,ece_now_oof,bss_now_frozen_slope_shifted_intercept,auc_then,auc_now,missrate_then,missrate_now,S_pair_abs_diff_median
+anchors_stable,1015.0,1016.0,1077.0,1096.0,1018.0,1016.0,59.0,78.0,2.0,10.0,10.0,dbip_lite+geojs+ip2location_lite+ip_api+ipinfo+maxmind_geolite2,ipapi_co+ipwho_is+reallyfreegeoip,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+anchors_stable,1015.0,,,,,,,,,,,,,2026-06_fullportfolio,4.104510425809849,173.41131732714135,11.133004926108374,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+anchors_stable,1015.0,,,,,,,,,,,,,2026-06,4.208797236740805,203.7979616005261,12.413793103448276,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+anchors_stable,1015.0,,,,,,,,,,,,,2026-10_frozen,4.849096060925254,216.77680321375504,13.399014778325121,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+anchors_stable,1015.0,,,,,,,,,,,,,2026-10_fresh,4.831560195559035,229.5627378324228,13.596059113300493,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+anchors_stable,,,,,,,,,,,,,,delta_frozen_minus_then,,,,0.64,0.202,0.948,0.985,0.0,1.97,18.0,8.0,118.0,50.1,26.2,4.3,0.01,0.59,6.0,96.06,95.96,,,,,,,,,,,,,,,,
+anchors_stable,,,,,,,,,,,,,,S_halves_2026-06,,,,,,,,,,,,,,,,,,,,,107.0,56.07,908.0,7.269,,,,,,,,,,,,
+anchors_stable,,,,,,,,,,,,,,S_halves_2026-10,,,,,,,,,,,,,,,,,,,,,102.0,57.84,913.0,8.434,,,,,,,,,,,,
+anchors_stable,,,,,,,,,,,,,,S_transfer,,,,,,,,,,,,,,,,,,,,,,,,,0.375,0.02,0.33,0.015,0.33,0.01,0.332,0.903,0.883,0.1241,0.134,0.0

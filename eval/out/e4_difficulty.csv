@@ -1,0 +1,13 @@
+bucket,n,estimator,median_km,q1_km,q3_km,mean_km
+easy,426,naive mean,4.2,1.9,8.2,6.3
+easy,426,geometric median,3.5,1.4,7.7,5.9
+easy,426,Braetz,3.9,1.6,8.3,6.4
+disagree,626,naive mean,141.8,51.3,527.6,686.5
+disagree,626,geometric median,7.1,2.4,94.1,391.9
+disagree,626,Braetz,64.4,17.7,289.1,484.0
+hard,25,naive mean,535.9,254.1,795.5,1047.1
+hard,25,geometric median,394.8,177.2,631.2,989.6
+hard,25,Braetz,515.4,203.6,631.0,1023.8
+overall,1077,naive mean,37.5,5.7,239.9,425.8
+overall,1077,geometric median,5.5,1.8,20.4,253.1
+overall,1077,Braetz,16.6,4.9,131.3,307.6

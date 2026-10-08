@@ -185,6 +185,35 @@ def support_concentration(obs: list[dict], est: tuple[float, float],
     return float(w[d < radius_km].sum())
 
 
+def country_vote(obs: list[dict], est: tuple[float, float],
+                 radius_km: float = S_RADIUS_KM) -> tuple[str | None, float, bool]:
+    """Country of the estimate as a line-weighted country vote within the S core.
+
+    The same mass whose total is S, summed per country code; highest mass
+    wins, ties alphabetical. If no labelled source lies in the core, the
+    country of the nearest source counts (fallback=True). Pre-specified and
+    measured on all populations (experiments/exp_country_level.py, T10):
+    anchors 96.8 %, transfer 98.4-100 %, pool 98.8 %, Giga 99.5 %; below a
+    mass of 0.5 the hit rate drops markedly. Returns (country | None, mass,
+    fallback).
+    """
+    w = line_weights([o["lineage"] for o in obs])
+    w = w / w.sum()
+    d = np.array([haversine_error((o["lat"], o["lon"]), est) for o in obs])
+    labels = [str(o.get("country") or "").strip().upper() for o in obs]
+    mass: Counter = Counter()
+    for i, o in enumerate(obs):
+        if d[i] < radius_km and labels[i]:
+            mass[labels[i]] += float(w[i])
+    if mass:
+        cc, m = sorted(mass.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+        return cc, float(m), False
+    for i in np.argsort(d):                  # fallback: nearest labelled source
+        if labels[i]:
+            return labels[i], 0.0, True
+    return None, 0.0, True
+
+
 def miss_probability(s: float, mobile_flag: bool | None) -> tuple[float, str] | None:
     """Frozen two-branch calibration: (P(error > tau), branch name).
 
@@ -200,6 +229,132 @@ def miss_probability(s: float, mobile_flag: bool | None) -> tuple[float, str] | 
     return float(p), branch
 
 
+# ---------- Archive mode: offline DBs from the record's month ----------
+# GeoIP sources have no history (none of our eight can be queried as of a
+# date; MaxMind archives 30 days, DB-IP Lite only the current month, RIPEstat
+# geoloc-history was in maintenance in 2026-09). Whoever wants to triage
+# historical holdings needs their OWN archive of the offline DBs: one folder
+# <archive>/YYYY-MM/ per month with GeoLite2-City.mmdb, dbip-city-lite-*.mmdb
+# and IP2LOCATION-LITE-DB5.BIN (the same files as in data/db/, put aside
+# monthly). The same estimate (L1+b, S, P(miss)) then runs on the three offline
+# lines of the record's month — three lines are exactly MIN_LINES_FOR_S, so S
+# can be reported. The radius table and the S calibration are the frozen ones
+# of the anchor evaluation (2026-06); their transfer to DB builds that are years
+# old is NOT measured (T8 covers two months) — archive mode therefore adds a
+# warning to that effect.
+ARCHIVE_SOURCES = {          # source -> file pattern in the month folder
+    "maxmind_geolite2": "GeoLite2-City*.mmdb",
+    "dbip_lite":        "dbip-city-lite*.mmdb",
+    "ip2location_lite": "IP2LOCATION-LITE-DB5*.BIN",
+}
+ARCHIVE_TOLERANCE_MONTHS = 1   # nearest month if the exact one is missing
+
+
+def resolve_archive_month(root: Path, ts) -> tuple[Path | None, str, int]:
+    """(month folder|None, 'YYYY-MM' of the folder, distance in months) for a timestamp.
+    Exact month preferred, otherwise the nearest within ARCHIVE_TOLERANCE_MONTHS."""
+    root = Path(root)
+    want = ts.year * 12 + (ts.month - 1)
+    best = None
+    for d in sorted(p for p in root.iterdir() if p.is_dir()) if root.exists() else []:
+        try:
+            y, m = d.name.split("-")
+            have = int(y) * 12 + (int(m) - 1)
+        except ValueError:
+            continue
+        dist = abs(have - want)
+        if dist <= ARCHIVE_TOLERANCE_MONTHS and (best is None or dist < best[2]):
+            best = (d, d.name, dist)
+    return best if best else (None, "", -1)
+
+
+_archive_readers: dict[str, object] = {}
+
+
+def archive_readers(month_dir: Path) -> dict[str, object]:
+    """Reader callables (ip -> body as in fetch_sources) for the DB files of a month folder.
+    Missing files are missing from the dict (that line then drops out)."""
+    out: dict[str, object] = {}
+    for source, pattern in ARCHIVE_SOURCES.items():
+        matches = sorted(Path(month_dir).glob(pattern))
+        if not matches:
+            continue
+        path = matches[-1]
+        key = str(path)
+        if path.suffix.upper() == ".BIN":
+            def read_bin(ip: str, path=path, key=key) -> dict:
+                import IP2Location
+                reader = _archive_readers.get(key)
+                if reader is None:
+                    reader = IP2Location.IP2Location(str(path)); _archive_readers[key] = reader
+                rec = reader.get_all(ip)
+                country = getattr(rec, "country_short", None)
+                try:
+                    lat = float(rec.latitude); lon = float(rec.longitude)
+                except (TypeError, ValueError, AttributeError):
+                    lat = lon = None
+                if country in ("-", "??", None) or lat is None:
+                    return {"found": False, "db_file": path.name}
+                return {"latitude": lat, "longitude": lon, "city": getattr(rec, "city", None),
+                        "country": country, "accuracy_radius": None, "db_file": path.name, "found": True}
+            out[source] = read_bin
+        else:
+            def read_mmdb(ip: str, path=path, key=key) -> dict:
+                import geoip2.database
+                import geoip2.errors
+                reader = _archive_readers.get(key)
+                if reader is None:
+                    reader = geoip2.database.Reader(str(path)); _archive_readers[key] = reader
+                try:
+                    c = reader.city(ip)
+                except geoip2.errors.AddressNotFoundError:
+                    return {"found": False, "db_file": path.name}
+                return {"latitude": c.location.latitude, "longitude": c.location.longitude,
+                        "city": c.city.name, "country": c.country.iso_code,
+                        "accuracy_radius": c.location.accuracy_radius, "db_file": path.name,
+                        "db_version": reader.metadata().build_epoch,
+                        "found": c.location.latitude is not None}
+            out[source] = read_mmdb
+    return out
+
+
+def collect_archive(ip: str, month_dir: Path) -> tuple[list[dict], list[tuple[str, str]], dict]:
+    """Like collect(), but from the offline DBs of an archive month folder; no network."""
+    readers = archive_readers(month_dir)
+    obs, failed = [], []
+    for source in ARCHIVE_SOURCES:
+        rd = readers.get(source)
+        if rd is None:
+            failed.append((source, f"no DB file ({ARCHIVE_SOURCES[source]}) in {Path(month_dir).name}"))
+            continue
+        try:
+            body = rd(ip)
+        except Exception as e:
+            failed.append((source, f"reader_error: {e!r}")); continue
+        if not body.get("found"):
+            failed.append((source, "not_found")); continue
+        obs.append({"ip": ip, "source": source, "lat": body["latitude"], "lon": body["longitude"],
+                    "city": body.get("city"), "country": body.get("country"), "status": "success",
+                    "accuracy_radius": body.get("accuracy_radius"), "db_version": body.get("db_version"),
+                    "db_file": body.get("db_file"), "lineage": SOURCES[source]["lineage"],
+                    "fetched_at_utc": None})
+    return obs, failed, {"mobile_flag": None}
+
+
+def locate_archive(ip: str, month_dir: Path) -> dict:
+    """Complete run like locate(), but on the offline DBs of the archive month.
+    Result as locate() plus ``basis`` = 'archive:YYYY-MM'."""
+    obs, failed, extras = collect_archive(ip, month_dir)
+    r = _assemble(ip, obs, failed, extras)
+    r["basis"] = f"archive:{Path(month_dir).name}"
+    r["warnings"] = [w for w in r["warnings"] if not w.startswith("ip-api mobile flag")]
+    r["warnings"].append(
+        f"Archive mode: estimate from the offline DB builds {Path(month_dir).name} "
+        f"({r['n_lines']} lines); radius table and S calibration are the frozen ones "
+        "of the anchor evaluation 2026-06 — transfer to older DB builds not measured")
+    return r
+
+
 def locate(ip: str, sources: list[str] | None = None) -> dict:
     """Complete run for one IP -> result dict for the transforms.
 
@@ -209,9 +364,19 @@ def locate(ip: str, sources: list[str] | None = None) -> dict:
     None without a reliable S or without a table), ``mobile_flag`` (True/False/
     None), ``n_sources``, ``n_lines``, ``observations`` (per source incl.
     distance to the estimate and radius), ``failed``, ``warnings``.
+    ``country``/``country_mass``/``country_fallback``: line-weighted country
+    vote within the S core (T10), fallback = nearest source.
     """
     obs, failed, extras = collect(ip, sources)
+    r = _assemble(ip, obs, failed, extras)
+    r["basis"] = "live"
+    return r
+
+
+def _assemble(ip: str, obs: list[dict], failed: list, extras: dict) -> dict:
+    """Observations -> result dict (estimate, S, country vote, calibration, warnings)."""
     result = {"ip": ip, "estimate": None, "s": None, "s_reliable": False,
+              "country": None, "country_mass": None, "country_fallback": False,
               "p_miss": None, "branch": None, "mobile_flag": extras["mobile_flag"],
               "n_sources": len(obs), "n_lines": 0, "observations": obs,
               "failed": failed, "warnings": []}
@@ -224,6 +389,8 @@ def locate(ip: str, sources: list[str] | None = None) -> dict:
     result["n_lines"] = len({o["lineage"] for o in obs})
     result["s"] = support_concentration(obs, est)
     result["s_reliable"] = result["n_lines"] >= MIN_LINES_FOR_S
+    result["country"], result["country_mass"], result["country_fallback"] = \
+        country_vote(obs, est)
     for o in obs:
         o["dist_to_estimate_km"] = haversine_error((o["lat"], o["lon"]), est)
         o["radius_km"] = point_radius(o)

@@ -1,0 +1,36 @@
+section,dataset,metric,value,extra
+bss_to_brier,anchors,bss=0.6,0.04217,|p-y|~0.205
+bss_to_brier,anchors,bss=0.625,0.03954,|p-y|~0.199
+bss_to_brier,anchors,bss=0.773,0.02393,|p-y|~0.155
+bss_to_brier,anchors,bss=0.9,0.01054,|p-y|~0.103
+bss_to_brier,anchors,bss=0.939,0.00643,|p-y|~0.080
+bss_to_brier,anchors,bss=0.95,0.00527,|p-y|~0.073
+bss_to_brier,anchors,bss=0.99,0.00105,|p-y|~0.032
+sufficiency,anchors,core_qw_25,0.0,gesamt=0.2243
+sufficiency,anchors,core_qw_50,0.0,gesamt=0.2083
+sufficiency,anchors,core_qw_75,0.0116,gesamt=0.1946
+sufficiency,anchors,core_qw_100,0.0,gesamt=0.1857
+limits,anchors,oracle_silent,0.939,n=1077 base=0.120 patterns=209 patterns_per_case=0.19
+limits,anchors,pattern_insample,0.773,n=1077 base=0.120 patterns=209 patterns_per_case=0.19
+limits,anchors,pattern_cv,0.449,n=1077 base=0.120 patterns=209 patterns_per_case=0.19
+limits,anchors,model_r7_internal_seed0,0.632,n=1077 base=0.120 patterns=209 patterns_per_case=0.19
+limits,probes,oracle_silent,0.82,n=500 base=0.150 patterns=167 patterns_per_case=0.33
+limits,probes,pattern_insample,0.746,n=500 base=0.150 patterns=167 patterns_per_case=0.33
+limits,probes,pattern_cv,0.199,n=500 base=0.150 patterns=167 patterns_per_case=0.33
+limits,probes,model_r7_internal_seed0,0.352,n=500 base=0.150 patterns=167 patterns_per_case=0.33
+limits,probes_holdout,oracle_silent,0.865,n=399 base=0.148 patterns=135 patterns_per_case=0.34
+limits,probes_holdout,pattern_insample,0.682,n=399 base=0.148 patterns=135 patterns_per_case=0.34
+limits,probes_holdout,pattern_cv,0.173,n=399 base=0.148 patterns=135 patterns_per_case=0.34
+limits,probes_holdout,model_r7_internal_seed0,0.293,n=399 base=0.148 patterns=135 patterns_per_case=0.34
+limits,probes_mobile,oracle_silent,0.842,n=60 base=0.267 patterns=51 patterns_per_case=0.85 DEGENERATE
+limits,probes_mobile,pattern_insample,0.957,n=60 base=0.267 patterns=51 patterns_per_case=0.85 DEGENERATE
+limits,probes_mobile,pattern_cv,0.063,n=60 base=0.267 patterns=51 patterns_per_case=0.85 DEGENERATE
+limits,probes_mobile,model_r7_internal_seed0,0.151,n=60 base=0.267 patterns=51 patterns_per_case=0.85 DEGENERATE
+limits,probes_mobile_ext,oracle_silent,0.63,n=178 base=0.320 patterns=99 patterns_per_case=0.56 DEGENERATE
+limits,probes_mobile_ext,pattern_insample,0.609,n=178 base=0.320 patterns=99 patterns_per_case=0.56 DEGENERATE
+limits,probes_mobile_ext,pattern_cv,-0.235,n=178 base=0.320 patterns=99 patterns_per_case=0.56 DEGENERATE
+limits,probes_mobile_ext,model_r7_internal_seed0,0.15,n=178 base=0.320 patterns=99 patterns_per_case=0.56 DEGENERATE
+limits,probes_mobile_extq,oracle_silent,0.654,n=173 base=0.318 patterns=96 patterns_per_case=0.55 DEGENERATE
+limits,probes_mobile_extq,pattern_insample,0.611,n=173 base=0.318 patterns=96 patterns_per_case=0.55 DEGENERATE
+limits,probes_mobile_extq,pattern_cv,-0.232,n=173 base=0.318 patterns=96 patterns_per_case=0.55 DEGENERATE
+limits,probes_mobile_extq,model_r7_internal_seed0,0.137,n=173 base=0.318 patterns=96 patterns_per_case=0.55 DEGENERATE

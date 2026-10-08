@@ -1,0 +1,7 @@
+variant,branch,n,base_rate,bss_oof,ece_oof,note
+two_branch_S_only,default,984,0.1535,0.153,0.04,BSS within the branch against its own base rate
+two_branch_S_only,mobile,90,0.4444,0.093,0.166,BSS within the branch against its own base rate
+two_branch_S_only,pooled,1074,0.1778,0.182,0.034,"shipped transform configuration; 10-fold stratified per branch, seed 0"
+one_branch_S_only,pooled,1074,0.1778,0.169,0.038,reference without type knowledge
+frozen_table_insample,pooled,1074,0.1778,0.188,0.033,"s_calibration.json applied unchanged (in-sample, link only)"
+withholding_rule,pooled,1074,0.1778,,,cases with >= 3 effective lines (S is reported only there)
