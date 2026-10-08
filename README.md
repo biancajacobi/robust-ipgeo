@@ -194,6 +194,6 @@ available by the Giga project under the Open Database License (ODbL) — source:
 
 Every tagged release of this repository is archived on Zenodo. The concept DOI
 [doi:10.5281/zenodo.21478389](https://doi.org/10.5281/zenodo.21478389) always resolves
-to the latest version; the v2.0.0 snapshot (August 2026) is
-[doi:10.5281/zenodo.22057779](https://doi.org/10.5281/zenodo.22057779), and the version
-DOI of the current release is listed on the Zenodo record.
+to the latest version. Version DOIs: v2.1.0 (October 2026)
+[doi:10.5281/zenodo.23246263](https://doi.org/10.5281/zenodo.23246263); v2.0.0 (August 2026)
+[doi:10.5281/zenodo.22057779](https://doi.org/10.5281/zenodo.22057779).
